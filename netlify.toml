@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+  functions = "netlify/functions"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Lưu ý: netlify/functions/check-overdue.ts đã tự khai báo lịch chạy
+# ("*/5 * * * *") ngay trong code bằng schedule() của @netlify/functions,
+# nên không cần khai báo lại cron expression ở đây.
