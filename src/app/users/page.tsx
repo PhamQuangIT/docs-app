@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import DepartmentSelect from "@/components/DepartmentSelect";
+
+const KHAC_POSITION_NAME = "Khác";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -8,6 +11,7 @@ export default function UsersPage() {
   const [positions, setPositions] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", password: "", role_id: "", department_id: "", position_id: "" });
+  const [customPositionText, setCustomPositionText] = useState("");
   const [error, setError] = useState("");
 
   async function load() {
@@ -19,17 +23,39 @@ export default function UsersPage() {
 
   useEffect(() => { load(); }, []);
 
+  const khacPosition = positions.find((p) => p.name === KHAC_POSITION_NAME);
+  const isKhacSelected = form.position_id === khacPosition?.id;
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    let positionId = form.position_id;
+
+    // Nếu chọn "Khác" và có gõ tên tùy ý -> tạo (hoặc lấy lại nếu đã có) vị trí mới, dùng id đó thay cho "Khác"
+    if (isKhacSelected && customPositionText.trim()) {
+      const posRes = await fetch("/api/positions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: customPositionText.trim() }),
+      });
+      if (!posRes.ok) {
+        setError((await posRes.json()).error || "Không tạo được vị trí mới");
+        return;
+      }
+      const posData = await posRes.json();
+      positionId = posData.id;
+    }
+
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, position_id: positionId || undefined }),
     });
     if (res.ok) {
       setShowForm(false);
       setForm({ full_name: "", email: "", password: "", role_id: "", department_id: "", position_id: "" });
+      setCustomPositionText("");
       load();
     } else {
       setError((await res.json()).error);
@@ -69,14 +95,30 @@ export default function UsersPage() {
             <option value="">-- Vai trò --</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
-          <select className="input" value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
-            <option value="">-- Bộ phận (không bắt buộc) --</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select className="input" value={form.position_id} onChange={(e) => setForm({ ...form, position_id: e.target.value })}>
+          <DepartmentSelect
+            departments={departments}
+            value={form.department_id}
+            onChange={(v) => setForm({ ...form, department_id: v })}
+            allLabel="-- Bộ phận (không bắt buộc) --"
+          />
+          <select
+            className="input"
+            value={form.position_id}
+            onChange={(e) => setForm({ ...form, position_id: e.target.value })}
+          >
             <option value="">-- Vị trí (không bắt buộc) --</option>
-            {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {positions.filter((p) => p.name !== "Khách hàng").map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
           </select>
+          {isKhacSelected && (
+            <input
+              className="input"
+              placeholder="Nhập tên chức danh cụ thể..."
+              value={customPositionText}
+              onChange={(e) => setCustomPositionText(e.target.value)}
+            />
+          )}
           <button className="btn btn-primary">Tạo</button>
         </form>
       )}

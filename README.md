@@ -13,6 +13,15 @@
 → Xem file **`DEPLOY.md`** — hướng dẫn deploy lên **Vercel + Supabase** hoặc **Netlify + Supabase**
 (miễn phí, ~20-30 phút, đã có sẵn cấu hình cho cả 2 nền tảng: `vercel.json` và `netlify.toml`).
 
+## Cập nhật mới nhất (theo yêu cầu điều chỉnh)
+
+- **Bộ phận/nhóm** giờ có phân cấp: Bộ phận gián tiếp (Hành chính, Kế hoạch, Giám sát) và
+  Bộ phận sản xuất (Nhận hàng, Nhặt hàng, Giao hàng, Đóng gói HT trong/ngoài phòng sạch, Đóng gói Unit)
+- **Vị trí (chức danh)** đổi thành 13 chức danh quản lý + "Khác" (cho nhập tên tùy ý, tự thêm vào danh mục dùng lần sau)
+- **Báo cáo cho** đổi từ chọn theo tên người sang chọn theo **chức danh** (13 chức danh + "Khách hàng"); khi chọn 1 chức danh, hệ thống tự thông báo cho (các) nhân viên đang giữ chức danh đó
+- **Bảng tin nội bộ** (mới): ai cũng đăng được, hiển thị cho mọi người khi mở phần mềm, bắt buộc bấm "Đã đọc" từng tin mới thao tác tiếp được
+- Nếu đang cập nhật từ bản deploy cũ hơn, xem mục **"Đã deploy từ trước và muốn cập nhật bản mới nhất"** trong `DEPLOY.md` — chạy `db/migration_003_reorg.sql`
+
 ## Tính năng đã bổ sung theo yêu cầu sử dụng thực tế
 
 - Nút **"Gán cho tôi"** khi xem việc chưa có người xử lý

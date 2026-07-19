@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import DepartmentSelect from "./DepartmentSelect";
 
 const TYPE_OPTIONS = [
   { value: "issue", label: "Sự cố" },
@@ -175,17 +176,21 @@ export default function CreateWorkItemModal({
         {showMore && (
           <div className="space-y-3 bg-gray-50 rounded-lg p-3">
             <div>
-              <label className="text-xs text-gray-500">Bộ phận</label>
-              <select className="input mt-1" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                <option value="">-- Không chọn --</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              <label className="text-xs text-gray-500">Bộ phận / nhóm</label>
+              <DepartmentSelect
+                departments={departments}
+                value={departmentId}
+                onChange={setDepartmentId}
+                className="input mt-1"
+              />
             </div>
             <div>
               <label className="text-xs text-gray-500">Vị trí chịu trách nhiệm</label>
               <select className="input mt-1" value={positionId} onChange={(e) => setPositionId(e.target.value)}>
                 <option value="">-- Không chọn --</option>
-                {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {positions
+                  .filter((p) => p.name !== "Khác" && p.name !== "Khách hàng")
+                  .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div>
@@ -196,10 +201,12 @@ export default function CreateWorkItemModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Báo cáo cho</label>
+              <label className="text-xs text-gray-500">Báo cáo cho (chức danh)</label>
               <select className="input mt-1" value={reportToId} onChange={(e) => setReportToId(e.target.value)}>
                 <option value="">-- Không chọn --</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
+                {positions
+                  .filter((p) => p.name !== "Khác")
+                  .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           </div>

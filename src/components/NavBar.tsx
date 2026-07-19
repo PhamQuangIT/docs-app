@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/work-items", label: "Công việc" },
   { href: "/my-task", label: "Việc của tôi" },
+  { href: "/announcements", label: "Bảng tin" },
   { href: "/reports", label: "Báo cáo" },
   { href: "/notifications", label: "Thông báo" },
 ];

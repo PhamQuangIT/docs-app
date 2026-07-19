@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { all, run } from "@/lib/db";
-import { requireUser, canManageUsers } from "@/lib/auth";
+import { all, get, run } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { v4 as uuid } from "uuid";
 import { NextRequest } from "next/server";
 
@@ -19,16 +19,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    if (!canManageUsers(user.roleName)) {
-      return NextResponse.json({ error: "Chỉ Admin được thêm vị trí" }, { status: 403 });
-    }
     const { name, sort_order } = await req.json();
     if (!name) return NextResponse.json({ error: "Thiếu tên vị trí" }, { status: 400 });
+
+    // Idempotent: nếu vị trí đã tồn tại (VD: người dùng gõ lại tên đã có khi chọn "Khác"), trả về id cũ
+    const existing = await get<any>(`SELECT id FROM positions WHERE name = :name`, { name: name.trim() });
+    if (existing) return NextResponse.json({ id: existing.id }, { status: 200 });
+
     const id = uuid();
     await run(`INSERT INTO positions (id, name, sort_order) VALUES (:id, :name, :sort_order)`, {
       id,
-      name,
-      sort_order: sort_order ?? 999,
+      name: name.trim(),
+      sort_order: sort_order ?? 50,
     });
     return NextResponse.json({ id }, { status: 201 });
   } catch (e: any) {

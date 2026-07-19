@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
               creator.full_name as creator_name,
               owner.full_name as owner_name,
               assigner.full_name as assigned_by_name,
-              reporter.full_name as report_to_name,
+              reporter_pos.name as report_to_name,
               d.name as department_name,
               p.name as position_name,
               c.name as customer_name
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
        LEFT JOIN users creator ON creator.id = wi.creator_id
        LEFT JOIN users owner ON owner.id = wi.owner_id
        LEFT JOIN users assigner ON assigner.id = wi.assigned_by_id
-       LEFT JOIN users reporter ON reporter.id = wi.report_to_id
+       LEFT JOIN positions reporter_pos ON reporter_pos.id = wi.report_to_id
        LEFT JOIN departments d ON d.id = wi.department_id
        LEFT JOIN positions p ON p.id = wi.position_id
        LEFT JOIN customers c ON c.id = wi.customer_id
@@ -162,7 +162,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (report_to_id) {
-      await notify(report_to_id, "created", `Việc mới cần báo cáo cho bạn: "${title}"`, id);
+      // report_to_id giờ là position_id (chức danh) - tự tìm user đang giữ chức danh đó để thông báo.
+      // Riêng "Khách hàng" không phải chức danh nhân viên nên không có ai để thông báo (chỉ mang tính ghi chú).
+      const reportToPosition = await get<any>(`SELECT name FROM positions WHERE id = :id`, { id: report_to_id });
+      if (reportToPosition && reportToPosition.name !== "Khách hàng") {
+        const holders = await all<any>(
+          `SELECT id FROM users WHERE position_id = :position_id AND is_active = true`,
+          { position_id: report_to_id }
+        );
+        for (const h of holders) {
+          await notify(h.id, "created", `Việc mới cần báo cáo cho ${reportToPosition.name}: "${title}"`, id);
+        }
+      }
     }
 
     const created = await get(`SELECT * FROM work_items WHERE id = :id`, { id });

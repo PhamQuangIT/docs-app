@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { PriorityBadge, StatusBadge, TypeLabel } from "@/components/Badges";
 import CreateWorkItemModal from "@/components/CreateWorkItemModal";
 import SlaCountdown from "@/components/SlaCountdown";
+import DepartmentSelect from "@/components/DepartmentSelect";
 
 const TYPE_TABS = [
   { value: "", label: "Tất cả" },
@@ -136,13 +137,16 @@ function WorkItemsPageInner() {
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
-        <select className="input max-w-[180px]" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-          <option value="">Tất cả bộ phận/nhóm</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+        <DepartmentSelect
+          departments={departments}
+          value={departmentId}
+          onChange={setDepartmentId}
+          className="input max-w-[180px]"
+          allLabel="Tất cả bộ phận/nhóm"
+        />
         <select className="input max-w-[190px]" value={positionId} onChange={(e) => setPositionId(e.target.value)}>
           <option value="">Tất cả vị trí</option>
-          {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {positions.filter((p) => p.name !== "Khách hàng").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <button className="btn btn-secondary text-sm">Lọc</button>
       </form>

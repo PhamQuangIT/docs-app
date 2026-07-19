@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS work_items (
   creator_id TEXT NOT NULL REFERENCES users(id),
   owner_id TEXT REFERENCES users(id),
   assigned_by_id TEXT REFERENCES users(id),
-  report_to_id TEXT REFERENCES users(id),
+  report_to_id TEXT REFERENCES positions(id),
   department_id TEXT REFERENCES departments(id),
   position_id TEXT REFERENCES positions(id),
   customer_id TEXT REFERENCES customers(id),
@@ -119,6 +119,23 @@ CREATE TABLE IF NOT EXISTS sla_config (
   customer_id TEXT REFERENCES customers(id)
 );
 
+-- Bảng tin nội bộ - ai cũng tạo được, ai cũng thấy, bắt buộc xác nhận đã đọc
+CREATE TABLE IF NOT EXISTS announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS announcement_reads (
+  id TEXT PRIMARY KEY,
+  announcement_id TEXT NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (announcement_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
 CREATE INDEX IF NOT EXISTS idx_work_items_owner ON work_items(owner_id);
 CREATE INDEX IF NOT EXISTS idx_work_items_deadline ON work_items(deadline);
@@ -126,3 +143,4 @@ CREATE INDEX IF NOT EXISTS idx_work_items_type ON work_items(type);
 CREATE INDEX IF NOT EXISTS idx_work_items_department ON work_items(department_id);
 CREATE INDEX IF NOT EXISTS idx_work_items_position ON work_items(position_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_announcement_reads_user ON announcement_reads(user_id);

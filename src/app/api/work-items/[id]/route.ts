@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
               creator.full_name as creator_name,
               owner.full_name as owner_name,
               assigner.full_name as assigned_by_name,
-              reporter.full_name as report_to_name,
+              reporter_pos.name as report_to_name,
               d.name as department_name,
               p.name as position_name,
               c.name as customer_name
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
        LEFT JOIN users creator ON creator.id = wi.creator_id
        LEFT JOIN users owner ON owner.id = wi.owner_id
        LEFT JOIN users assigner ON assigner.id = wi.assigned_by_id
-       LEFT JOIN users reporter ON reporter.id = wi.report_to_id
+       LEFT JOIN positions reporter_pos ON reporter_pos.id = wi.report_to_id
        LEFT JOIN departments d ON d.id = wi.department_id
        LEFT JOIN positions p ON p.id = wi.position_id
        LEFT JOIN customers c ON c.id = wi.customer_id

@@ -12,8 +12,7 @@ async function insertRole(name: string, permissions: object) {
   return id;
 }
 
-async function insertDept(name: string, parentId: string | null = null) {
-  const id = uuid();
+async function insertDept(id: string, name: string, parentId: string | null = null) {
   await run(
     "INSERT INTO departments (id, name, parent_id) VALUES (:id, :name, :parent_id)",
     { id, name, parent_id: parentId }
@@ -21,8 +20,7 @@ async function insertDept(name: string, parentId: string | null = null) {
   return id;
 }
 
-async function insertPosition(name: string, sortOrder: number) {
-  const id = uuid();
+async function insertPosition(id: string, name: string, sortOrder: number) {
   await run(
     "INSERT INTO positions (id, name, sort_order) VALUES (:id, :name, :sort_order)",
     { id, name, sort_order: sortOrder }
@@ -74,7 +72,7 @@ async function insertWorkItem(opts: {
   creatorId: string;
   ownerId?: string | null;
   assignedById?: string | null;
-  reportToId?: string | null;
+  reportToId?: string | null; // giờ là position_id (chức danh), không còn là user
   departmentId?: string | null;
   positionId?: string | null;
   customerId?: string | null;
@@ -110,6 +108,8 @@ async function main() {
   console.log("Seeding database...");
 
   const tables = [
+    "announcement_reads",
+    "announcements",
     "notifications",
     "escalations",
     "work_item_history",
@@ -132,35 +132,35 @@ async function main() {
   const roleEmployee = await insertRole("Employee", { update_own: true });
   const roleViewer = await insertRole("Viewer", { view_only: true, create_customer_request: true });
 
-  // Danh sách vị trí mặc định theo yêu cầu công ty
-  const positionNames = [
-    "Trưởng phòng",
-    "Phó phòng SX",
-    "Phó phòng gián tiếp",
-    "Trưởng nhóm nhận hàng",
-    "Trưởng nhóm nhặt lệnh",
-    "Trưởng nhóm giao hàng",
-    "Trưởng nhóm đóng gói HT trong PS",
-    "Trưởng nhóm đóng gói HT ngoài PS",
-    "Trưởng nhóm đóng gói Unit",
-    "Trưởng nhóm kế hoạch phòng",
-    "Trưởng nhóm giám sát",
-    "Trưởng nhóm hành chính",
-    "Nhân viên kế hoạch sản xuất",
-    "Nhân viên giám sát",
-    "Nhân viên hành chính",
-    "Nhân viên hỗ trợ",
-  ];
-  const positionIds: Record<string, string> = {};
-  for (let i = 0; i < positionNames.length; i++) {
-    positionIds[positionNames[i]] = await insertPosition(positionNames[i], i + 1);
-  }
+  // ---- Bộ phận / nhóm (phân cấp) ----
+  await insertDept("dept-gian-tiep", "Bộ phận gián tiếp", null);
+  await insertDept("dept-san-xuat", "Bộ phận sản xuất", null);
+  await insertDept("dept-hanh-chinh", "Hành chính", "dept-gian-tiep");
+  await insertDept("dept-ke-hoach", "Kế hoạch", "dept-gian-tiep");
+  await insertDept("dept-giam-sat", "Giám sát", "dept-gian-tiep");
+  await insertDept("dept-dong-goi-trong-ps", "Đóng gói hệ thống trong phòng sạch", "dept-san-xuat");
+  await insertDept("dept-dong-goi-ngoai-ps", "Đóng gói hệ thống ngoài phòng sạch", "dept-san-xuat");
+  await insertDept("dept-dong-goi-unit", "Đóng gói Unit", "dept-san-xuat");
+  await insertDept("dept-nhan-hang", "Nhận hàng", "dept-san-xuat");
+  await insertDept("dept-nhat-hang", "Nhặt hàng", "dept-san-xuat");
+  await insertDept("dept-giao-hang", "Giao hàng", "dept-san-xuat");
 
-  const deptWH = await insertDept("Kho vận hành onsite");
-  const deptReceiving = await insertDept("Nhận hàng (Receiving)", deptWH);
-  const deptStorage = await insertDept("Lưu kho (Storage)", deptWH);
-  const deptPicking = await insertDept("Lấy hàng theo BOM (Picking)", deptWH);
-  const deptPacking = await insertDept("Đóng gói thành phẩm (Packing)", deptWH);
+  // ---- Vị trí / chức danh ----
+  await insertPosition("pos-giam-doc", "Giám đốc/TL giám đốc", 1);
+  await insertPosition("pos-truong-phong", "Trưởng phòng", 2);
+  await insertPosition("pos-pho-phong-gian-tiep", "Phó phòng gián tiếp", 3);
+  await insertPosition("pos-pho-phong-san-xuat", "Phó phòng sản xuất", 4);
+  await insertPosition("pos-tn-nhan-hang", "Trưởng nhóm nhận hàng", 5);
+  await insertPosition("pos-tn-nhat-hang", "Trưởng nhóm nhặt hàng", 6);
+  await insertPosition("pos-tn-giao-hang", "Trưởng nhóm giao hàng", 7);
+  await insertPosition("pos-tn-dg-trong-ps", "Trưởng nhóm đóng gói hệ thống trong phòng sạch", 8);
+  await insertPosition("pos-tn-dg-ngoai-ps", "Trưởng nhóm đóng gói hệ thống ngoài phòng sạch", 9);
+  await insertPosition("pos-tn-dg-unit", "Trưởng nhóm đóng gói Unit", 10);
+  await insertPosition("pos-tn-ke-hoach", "Trưởng nhóm kế hoạch phòng", 11);
+  await insertPosition("pos-tn-hanh-chinh", "Trưởng nhóm hành chính", 12);
+  await insertPosition("pos-tn-giam-sat", "Trưởng nhóm giám sát", 13);
+  await insertPosition("pos-khac", "Khác", 14);
+  await insertPosition("pos-khach-hang", "Khách hàng", 99); // chỉ dùng cho "Báo cáo cho"
 
   const customer = await insertCustomer(
     "Nhà máy khách hàng - Sản xuất Robot bán dẫn",
@@ -168,12 +168,12 @@ async function main() {
   );
 
   const uAdmin = await insertUser("Quản trị hệ thống", "admin@3pl.local", "Admin@123", roleAdmin, null);
-  const uOM = await insertUser("Phạm Quang", "quang.pham@3pl.local", "Quang@123", roleOM, deptWH, positionIds["Trưởng phòng"]);
-  const uLeaderReceiving = await insertUser("Leader Nhận hàng", "leader.receiving@3pl.local", "Leader@123", roleLeader, deptReceiving, positionIds["Trưởng nhóm nhận hàng"]);
-  const uLeaderPacking = await insertUser("Leader Đóng gói", "leader.packing@3pl.local", "Leader@123", roleLeader, deptPacking, positionIds["Trưởng nhóm đóng gói Unit"]);
-  const uSupervisorPicking = await insertUser("Supervisor Picking", "sup.picking@3pl.local", "Sup@123", roleSupervisor, deptPicking, positionIds["Trưởng nhóm nhặt lệnh"]);
-  const uEmp1 = await insertUser("Nguyễn Văn A", "nva@3pl.local", "Emp@123", roleEmployee, deptReceiving, positionIds["Nhân viên hỗ trợ"]);
-  const uEmp2 = await insertUser("Trần Thị B", "ttb@3pl.local", "Emp@123", roleEmployee, deptPacking, positionIds["Nhân viên hỗ trợ"]);
+  const uOM = await insertUser("Phạm Quang", "quang.pham@3pl.local", "Quang@123", roleOM, "dept-gian-tiep", "pos-truong-phong");
+  const uLeaderReceiving = await insertUser("Leader Nhận hàng", "leader.receiving@3pl.local", "Leader@123", roleLeader, "dept-nhan-hang", "pos-tn-nhan-hang");
+  const uLeaderPacking = await insertUser("Leader Đóng gói", "leader.packing@3pl.local", "Leader@123", roleLeader, "dept-dong-goi-unit", "pos-tn-dg-unit");
+  const uSupervisorPicking = await insertUser("Supervisor Picking", "sup.picking@3pl.local", "Sup@123", roleSupervisor, "dept-nhat-hang", "pos-tn-nhat-hang");
+  const uEmp1 = await insertUser("Nguyễn Văn A", "nva@3pl.local", "Emp@123", roleEmployee, "dept-nhan-hang", "pos-khac");
+  const uEmp2 = await insertUser("Trần Thị B", "ttb@3pl.local", "Emp@123", roleEmployee, "dept-dong-goi-unit", "pos-khac");
   const uViewer = await insertUser("Đại diện khách hàng", "viewer@customer.local", "Viewer@123", roleViewer, null);
 
   const slaDefaults: [string, number, number][] = [
@@ -202,9 +202,9 @@ async function main() {
     creatorId: uLeaderReceiving,
     ownerId: uLeaderReceiving,
     assignedById: uLeaderReceiving,
-    reportToId: uOM,
-    departmentId: deptReceiving,
-    positionId: positionIds["Trưởng nhóm nhận hàng"],
+    reportToId: "pos-truong-phong",
+    departmentId: "dept-nhan-hang",
+    positionId: "pos-tn-nhan-hang",
     deadline: inHours(2),
   });
 
@@ -215,9 +215,9 @@ async function main() {
     priority: "urgent",
     status: "new",
     creatorId: uOM,
-    reportToId: uOM,
-    departmentId: deptPicking,
-    positionId: positionIds["Trưởng nhóm nhặt lệnh"],
+    reportToId: "pos-khach-hang",
+    departmentId: "dept-nhat-hang",
+    positionId: "pos-tn-nhat-hang",
     customerId: customer,
     deadline: inHours(-1),
   });
@@ -230,9 +230,9 @@ async function main() {
     creatorId: uOM,
     ownerId: uLeaderPacking,
     assignedById: uOM,
-    reportToId: uOM,
-    departmentId: deptPacking,
-    positionId: positionIds["Trưởng nhóm đóng gói Unit"],
+    reportToId: "pos-truong-phong",
+    departmentId: "dept-dong-goi-unit",
+    positionId: "pos-tn-dg-unit",
     deadline: inHours(48),
   });
 
@@ -244,11 +244,23 @@ async function main() {
     creatorId: uOM,
     ownerId: uSupervisorPicking,
     assignedById: uOM,
-    reportToId: uOM,
-    departmentId: deptPicking,
-    positionId: positionIds["Trưởng nhóm nhặt lệnh"],
+    reportToId: "pos-truong-phong",
+    departmentId: "dept-nhat-hang",
+    positionId: "pos-tn-nhat-hang",
     deadline: inHours(72),
   });
+
+  // Bảng tin nội bộ mẫu
+  const annId = uuid();
+  await run(
+    `INSERT INTO announcements (id, title, content, created_by) VALUES (:id, :title, :content, :created_by)`,
+    {
+      id: annId,
+      title: "Chào mừng sử dụng hệ thống quản lý vận hành",
+      content: "Mọi phát sinh trong ca làm việc cần được ghi nhận trên hệ thống này thay vì Zalo/điện thoại. Vui lòng đọc kỹ hướng dẫn trước khi thao tác.",
+      created_by: uOM,
+    }
+  );
 
   console.log("Seed thành công.");
   console.log("Tài khoản đăng nhập mẫu:");
