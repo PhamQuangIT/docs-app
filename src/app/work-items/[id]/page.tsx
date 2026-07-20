@@ -131,7 +131,12 @@ export default function WorkItemDetailPage() {
 
         <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
           <div><span className="text-gray-400">Người tạo:</span> {item.creator_name}</div>
-          <div><span className="text-gray-400">Người chịu trách nhiệm:</span> {item.owner_name ?? "Chưa gán"}</div>
+          <div>
+            <span className="text-gray-400">Người chịu trách nhiệm:</span> {item.owner_name ?? "Chưa gán chính thức"}
+            {item.owner_name_manual && (
+              <span className="text-gray-400"> (ghi chú lúc tạo: {item.owner_name_manual})</span>
+            )}
+          </div>
           <div><span className="text-gray-400">Người giao việc:</span> {item.assigned_by_name ?? "-"}</div>
           <div><span className="text-gray-400">Báo cáo cho:</span> {item.report_to_name ?? "-"}</div>
           <div><span className="text-gray-400">Bộ phận:</span> {item.department_name ?? "-"}</div>

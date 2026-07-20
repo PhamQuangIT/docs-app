@@ -183,7 +183,9 @@ function WorkItemsPageInner() {
                 <td className="px-4 py-2.5"><TypeLabel type={item.type} /></td>
                 <td className="px-4 py-2.5"><PriorityBadge priority={item.priority} /></td>
                 <td className="px-4 py-2.5"><StatusBadge status={item.status} /></td>
-                <td className="px-4 py-2.5 text-gray-500">{item.owner_name ?? "Chưa gán"}</td>
+                <td className="px-4 py-2.5 text-gray-500">
+                  {item.owner_name ?? (item.owner_name_manual ? `${item.owner_name_manual} (ghi chú)` : "Chưa gán")}
+                </td>
                 <td className="px-4 py-2.5">
                   <div className="text-gray-500">{fmt(item.deadline)}</div>
                   <SlaCountdown deadline={item.deadline} status={item.status} />

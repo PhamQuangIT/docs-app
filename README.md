@@ -13,6 +13,15 @@
 → Xem file **`DEPLOY.md`** — hướng dẫn deploy lên **Vercel + Supabase** hoặc **Netlify + Supabase**
 (miễn phí, ~20-30 phút, đã có sẵn cấu hình cho cả 2 nền tảng: `vercel.json` và `netlify.toml`).
 
+## Cập nhật mới nhất (đợt 2 - theo file Thay_đổi.docx)
+
+- **Xoá 7 tài khoản demo** (bao gồm cả "Phạm Quang" mẫu ban đầu) — hệ thống giờ chỉ còn 1 tài
+  khoản Admin dự phòng (`admin@3pl.local`), công ty tự tạo tài khoản thật qua trang Quản lý người dùng
+- **"Người chịu trách nhiệm" lúc tạo việc** đổi thành ô nhập tay tự do (ghi chú, không gắn tài khoản)
+  — muốn kích hoạt "Việc của tôi"/"Gán cho tôi"/thông báo tự động, cần dùng nút "Gán việc" ở trang chi tiết
+- **"Báo cáo cho"** giờ có thêm lựa chọn **"Khác"** (nhập tay chức danh tùy ý), và **"Khách hàng"** đứng đầu danh sách
+- Nếu đang cập nhật từ bản deploy cũ hơn, xem mục **"Đã deploy từ trước — cập nhật đợt mới nhất"** trong `DEPLOY.md` — chạy `db/migration_004_cleanup_demo.sql`
+
 ## Cập nhật mới nhất (theo yêu cầu điều chỉnh)
 
 - **Bộ phận/nhóm** giờ có phân cấp: Bộ phận gián tiếp (Hành chính, Kế hoạch, Giám sát) và

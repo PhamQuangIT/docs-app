@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS work_items (
   is_overdue BOOLEAN NOT NULL DEFAULT FALSE,
   creator_id TEXT NOT NULL REFERENCES users(id),
   owner_id TEXT REFERENCES users(id),
+  owner_name_manual TEXT,
   assigned_by_id TEXT REFERENCES users(id),
   report_to_id TEXT REFERENCES positions(id),
   department_id TEXT REFERENCES departments(id),

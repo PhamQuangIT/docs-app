@@ -92,14 +92,14 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/work-items  - tạo nhanh: title, type, deadline, priority bắt buộc;
-// vị trí chịu trách nhiệm, người chịu trách nhiệm, báo cáo cho có thể để trống và bổ sung sau
+// vị trí chịu trách nhiệm, người chịu trách nhiệm (ghi chú tự do), báo cáo cho có thể để trống và bổ sung sau
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     const body = await req.json();
     const {
       type, title, description, priority, deadline,
-      owner_id, department_id, position_id, customer_id, meeting_ref, report_to_id,
+      owner_name_manual, department_id, position_id, customer_id, meeting_ref, report_to_id,
     } = body;
 
     if (!type || !title || !deadline || !priority) {
@@ -114,14 +114,15 @@ export async function POST(req: NextRequest) {
     }
 
     const id = uuid();
-    const status = owner_id ? "assigned" : "new";
+    // owner_name_manual chỉ là ghi chú tự do, KHÔNG gắn tài khoản nên không tự chuyển trạng thái "assigned"
+    const status = "new";
 
     await run(
       `INSERT INTO work_items
-       (id, type, title, description, priority, status, creator_id, owner_id, assigned_by_id, report_to_id,
-        department_id, position_id, customer_id, meeting_ref, deadline, assigned_at)
-       VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_id, :assigned_by_id, :report_to_id,
-        :department_id, :position_id, :customer_id, :meeting_ref, :deadline, :assigned_at)`,
+       (id, type, title, description, priority, status, creator_id, owner_name_manual, report_to_id,
+        department_id, position_id, customer_id, meeting_ref, deadline)
+       VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_name_manual, :report_to_id,
+        :department_id, :position_id, :customer_id, :meeting_ref, :deadline)`,
       {
         id,
         type,
@@ -130,15 +131,13 @@ export async function POST(req: NextRequest) {
         priority,
         status,
         creator_id: user.id,
-        owner_id: owner_id ?? null,
-        assigned_by_id: owner_id ? user.id : null, // Người giao việc = người tạo nếu gán ngay lúc tạo
+        owner_name_manual: owner_name_manual ?? null,
         report_to_id: report_to_id ?? null,
         department_id: department_id ?? null,
         position_id: position_id ?? null,
         customer_id: customer_id ?? null,
         meeting_ref: meeting_ref ?? null,
         deadline,
-        assigned_at: owner_id ? new Date().toISOString() : null,
       }
     );
 
@@ -148,18 +147,15 @@ export async function POST(req: NextRequest) {
       { id: uuid(), work_item_id: id, to_status: status, changed_by: user.id }
     );
 
-    if (owner_id) {
-      await notify(owner_id, "assigned", `Bạn được giao việc mới: "${title}"`, id);
-    } else {
-      // Thông báo cho Leader/OM cùng phòng ban để gán người xử lý
-      const leaders = await all<any>(
-        `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-         WHERE r.name IN ('Leader','Operation Manager','Admin')
-         AND (u.department_id = :dept OR :dept2::text IS NULL)`,
-        { dept: department_id ?? null, dept2: department_id ?? null }
-      );
-      for (const l of leaders) await notify(l.id, "created", `Việc mới cần gán người xử lý: "${title}"`, id);
-    }
+    // Người chịu trách nhiệm giờ chỉ là ghi chú tự do (owner_name_manual), không gắn tài khoản
+    // => luôn thông báo cho Leader/OM cùng phòng ban để họ gán chính thức qua nút "Gán việc"
+    const leaders = await all<any>(
+      `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
+       WHERE r.name IN ('Leader','Operation Manager','Admin')
+       AND (u.department_id = :dept OR :dept2::text IS NULL)`,
+      { dept: department_id ?? null, dept2: department_id ?? null }
+    );
+    for (const l of leaders) await notify(l.id, "created", `Việc mới cần gán người xử lý: "${title}"`, id);
 
     if (report_to_id) {
       // report_to_id giờ là position_id (chức danh) - tự tìm user đang giữ chức danh đó để thông báo.

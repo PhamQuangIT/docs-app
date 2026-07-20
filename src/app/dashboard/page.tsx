@@ -20,7 +20,9 @@ function WorkItemRow({ item }: { item: any }) {
         <div className="flex items-center gap-2 mt-0.5">
           <TypeLabel type={item.type} />
           <span className="text-xs text-gray-400">·</span>
-          <span className="text-xs text-gray-400">{item.owner_name || "Chưa gán"}</span>
+          <span className="text-xs text-gray-400">
+            {item.owner_name || (item.owner_name_manual ? `${item.owner_name_manual} (ghi chú)` : "Chưa gán")}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 ml-3">

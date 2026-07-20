@@ -46,21 +46,23 @@ export default function CreateWorkItemModal({
   const [description, setDescription] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [positionId, setPositionId] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const [ownerNameManual, setOwnerNameManual] = useState("");
   const [reportToId, setReportToId] = useState("");
+  const [reportToCustomText, setReportToCustomText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showMore, setShowMore] = useState(false);
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/departments").then((r) => r.json()).then(setDepartments).catch(() => {});
     fetch("/api/positions").then((r) => r.json()).then(setPositions).catch(() => {});
-    fetch("/api/users").then((r) => r.json()).then(setUsers).catch(() => {});
   }, []);
+
+  const khacPosition = positions.find((p) => p.name === "Khác");
+  const isReportToKhac = reportToId === khacPosition?.id;
 
   function applyPreset(p: (typeof QUICK_PRESETS)[number]) {
     setType(p.type);
@@ -76,6 +78,22 @@ export default function CreateWorkItemModal({
     }
     setLoading(true);
     setError("");
+
+    let finalReportToId = reportToId;
+    if (isReportToKhac && reportToCustomText.trim()) {
+      const posRes = await fetch("/api/positions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: reportToCustomText.trim() }),
+      });
+      if (!posRes.ok) {
+        setLoading(false);
+        setError((await posRes.json()).error || "Không tạo được chức danh mới");
+        return;
+      }
+      finalReportToId = (await posRes.json()).id;
+    }
+
     const res = await fetch("/api/work-items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,8 +105,8 @@ export default function CreateWorkItemModal({
         description: description || undefined,
         department_id: departmentId || undefined,
         position_id: positionId || undefined,
-        owner_id: ownerId || undefined,
-        report_to_id: reportToId || undefined,
+        owner_name_manual: ownerNameManual || undefined,
+        report_to_id: finalReportToId || undefined,
       }),
     });
     setLoading(false);
@@ -194,20 +212,32 @@ export default function CreateWorkItemModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-500">Người chịu trách nhiệm (giao ngay)</label>
-              <select className="input mt-1" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-                <option value="">-- Để trống, gán sau --</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
-              </select>
+              <label className="text-xs text-gray-500">Người chịu trách nhiệm (ghi chú, không gắn tài khoản)</label>
+              <input
+                className="input mt-1"
+                placeholder="VD: Nguyễn Văn A"
+                value={ownerNameManual}
+                onChange={(e) => setOwnerNameManual(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Đây chỉ là ghi chú tên, không tự kích hoạt "Việc của tôi"/thông báo. Muốn gán chính thức
+                (để người đó nhận thông báo, thấy trong "Việc của tôi"), dùng nút "Gán việc" ở trang chi tiết sau khi tạo.
+              </p>
             </div>
             <div>
               <label className="text-xs text-gray-500">Báo cáo cho (chức danh)</label>
               <select className="input mt-1" value={reportToId} onChange={(e) => setReportToId(e.target.value)}>
                 <option value="">-- Không chọn --</option>
-                {positions
-                  .filter((p) => p.name !== "Khác")
-                  .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              {isReportToKhac && (
+                <input
+                  className="input mt-2"
+                  placeholder="Nhập tên chức danh cụ thể..."
+                  value={reportToCustomText}
+                  onChange={(e) => setReportToCustomText(e.target.value)}
+                />
+              )}
             </div>
           </div>
         )}
