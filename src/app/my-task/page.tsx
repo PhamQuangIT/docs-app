@@ -15,13 +15,17 @@ export default function MyTaskPage() {
   useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((u) => {
       setMe(u);
-      fetch(`/api/work-items?owner_id=${u.id}`).then((r) => r.json()).then(setItems);
+      fetch(`/api/work-items?mine=true`).then((r) => r.json()).then(setItems);
     });
   }, []);
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Việc của tôi</h1>
+      <p className="text-xs text-gray-400">
+        Bao gồm việc được gán trực tiếp cho bạn, và việc gán theo đúng Vị trí chịu trách nhiệm của bạn
+        {me?.positionId ? "" : " (bạn chưa có Vị trí trong hồ sơ, chỉ hiện việc gán trực tiếp)"}.
+      </p>
       <div className="card p-0 overflow-hidden">
         {items.length === 0 && <p className="text-sm text-gray-400 p-4">Bạn không có việc nào được giao</p>}
         {items.map((item) => (
@@ -38,6 +42,9 @@ export default function MyTaskPage() {
               <div className="flex items-center gap-2 mt-1">
                 <TypeLabel type={item.type} />
                 <StatusBadge status={item.status} />
+                {item.owner_id !== me?.id && item.position_name && (
+                  <span className="text-xs text-purple-500">theo vị trí: {item.position_name}</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">

@@ -137,6 +137,27 @@ CREATE TABLE IF NOT EXISTS announcement_reads (
   UNIQUE (announcement_id, user_id)
 );
 
+-- Đề xuất của người được giao việc (hoàn thành / hủy / sửa nội dung-hạn),
+-- gửi cho người giao việc duyệt trước khi có hiệu lực thật sự.
+CREATE TABLE IF NOT EXISTS work_item_proposals (
+  id TEXT PRIMARY KEY,
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('complete','cancel','edit')),
+  proposed_by TEXT NOT NULL REFERENCES users(id),
+  note TEXT,
+  proposed_title TEXT,
+  proposed_description TEXT,
+  proposed_deadline TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  reviewed_by TEXT REFERENCES users(id),
+  reviewed_at TIMESTAMPTZ,
+  review_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_proposals_work_item ON work_item_proposals(work_item_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON work_item_proposals(status);
+
 CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
 CREATE INDEX IF NOT EXISTS idx_work_items_owner ON work_items(owner_id);
 CREATE INDEX IF NOT EXISTS idx_work_items_deadline ON work_items(deadline);

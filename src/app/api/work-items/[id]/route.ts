@@ -51,8 +51,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
        WHERE e.work_item_id = :id ORDER BY e.created_at ASC`,
       { id: params.id }
     );
+    const proposals = await all(
+      `SELECT p.*, u.full_name as proposed_by_name, r.full_name as reviewed_by_name
+       FROM work_item_proposals p
+       JOIN users u ON u.id = p.proposed_by
+       LEFT JOIN users r ON r.id = p.reviewed_by
+       WHERE p.work_item_id = :id ORDER BY p.created_at DESC`,
+      { id: params.id }
+    );
 
-    return NextResponse.json({ ...item, comments, attachments, history, escalations });
+    return NextResponse.json({ ...item, comments, attachments, history, escalations, proposals });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: e.status || 500 });
   }

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     if (!canManageUsers(user.roleName)) {
-      return NextResponse.json({ error: "Chỉ Admin được tạo phòng ban" }, { status: 403 });
+      return NextResponse.json({ error: "Chỉ BGĐ được tạo phòng ban" }, { status: 403 });
     }
     const { name, parent_id } = await req.json();
     if (!name) return NextResponse.json({ error: "Thiếu tên phòng ban" }, { status: 400 });

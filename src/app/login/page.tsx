@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("quang.pham@3pl.local");
-  const [password, setPassword] = useState("Quang@123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,23 +39,15 @@ export default function LoginPage() {
         {error && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>}
         <div>
           <label className="text-xs text-gray-500">Email</label>
-          <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="input mt-1" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
         </div>
         <div>
           <label className="text-xs text-gray-500">Mật khẩu</label>
-          <input
-            type="password"
-            className="input mt-1"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <PasswordInput className="input mt-1" value={password} onChange={setPassword} />
         </div>
         <button className="btn btn-primary w-full" disabled={loading}>
           {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
-        <p className="text-xs text-gray-400">
-          Tài khoản demo: quang.pham@3pl.local / Quang@123 (Operation Manager)
-        </p>
       </form>
     </div>
   );

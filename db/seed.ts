@@ -75,17 +75,18 @@ async function main() {
   ];
   for (const t of tables) await run(`DELETE FROM ${t}`);
 
-  // ---- Vai trò ----
-  const roleAdmin = await insertRole("Admin", { all: true });
-  await insertRole("Operation Manager", { manage_all: true, report: true });
-  await insertRole("Leader", { assign: true, close: true, report_team: true });
-  await insertRole("Supervisor", { create: true, assign_team: true });
-  await insertRole("Employee", { update_own: true });
-  await insertRole("Viewer", { view_only: true, create_customer_request: true });
+  // ---- Vai trò (mới - theo Thay_đổi.docx mục 4 + 8) ----
+  const roleBGD = await insertRole("BGĐ", { all: true });
+  await insertRole("Quản lý", { assign: true, close: true, report_team: true });
+  await insertRole("Sản xuất trực tiếp", { update_own: true });
+  await insertRole("Gián tiếp", { update_own: true });
+  await insertRole("Khách hàng", { view_only: true, create_customer_request: true });
 
   // ---- Bộ phận / nhóm (phân cấp) ----
   await insertDept("dept-gian-tiep", "Bộ phận gián tiếp", null);
   await insertDept("dept-san-xuat", "Bộ phận sản xuất", null);
+  await insertDept("dept-bgd", "Ban giám đốc", null);
+  await insertDept("dept-cs", "Phòng dịch vụ khách hàng", null);
   await insertDept("dept-hanh-chinh", "Hành chính", "dept-gian-tiep");
   await insertDept("dept-ke-hoach", "Kế hoạch", "dept-gian-tiep");
   await insertDept("dept-giam-sat", "Giám sát", "dept-gian-tiep");
@@ -113,13 +114,13 @@ async function main() {
   await insertPosition("pos-tn-giam-sat", "Trưởng nhóm giám sát", 13);
   await insertPosition("pos-khac", "Khác", 14);
 
-  // ---- Tài khoản duy nhất: Admin dự phòng ----
+  // ---- Tài khoản duy nhất: BGĐ dự phòng ----
   // (Không tạo sẵn tài khoản demo nào khác - công ty tự tạo tài khoản thật qua trang Quản lý người dùng)
-  await insertUser("Quản trị hệ thống", "admin@3pl.local", "Admin@123", roleAdmin, null);
+  await insertUser("Quản trị hệ thống", "admin@3pl.local", "Admin@123", roleBGD, null);
 
   console.log("Seed thành công.");
-  console.log("Tài khoản Admin dự phòng duy nhất:");
-  console.log(" - admin@3pl.local / Admin@123 (Admin)");
+  console.log("Tài khoản BGĐ dự phòng duy nhất:");
+  console.log(" - admin@3pl.local / Admin@123 (BGĐ)");
   console.log("=> Đăng nhập ngay và tạo tài khoản thật (email công ty) qua trang Quản lý người dùng.");
   process.exit(0);
 }

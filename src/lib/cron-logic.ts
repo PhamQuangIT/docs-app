@@ -25,10 +25,10 @@ export async function runOverdueCheck() {
   for (const item of toMarkOverdue) {
     await run(`UPDATE work_items SET is_overdue = true, updated_at = NOW() WHERE id = :id`, { id: item.id });
     if (item.owner_id) await notify(item.owner_id, "overdue", `Việc "${item.title}" đã QUÁ HẠN`, item.id);
-    // Thông báo Leader/OM cùng phòng ban
+    // Thông báo Quản lý/BGĐ cùng phòng ban
     const leaders = await all<any>(
       `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-       WHERE r.name IN ('Leader','Operation Manager','Admin')
+       WHERE r.name IN ('Quản lý','BGĐ')
        AND (u.department_id = :dept OR :dept2::text IS NULL)`,
       { dept: item.department_id, dept2: item.department_id }
     );
@@ -66,16 +66,16 @@ export async function runOverdueCheck() {
     const hoursOverdue = (Date.now() - new Date(item.deadline).getTime()) / 3600000;
     if (hoursOverdue < thresholdHours) continue;
 
-    // Escalate lên Leader của phòng ban; nếu không có, escalate lên Operation Manager
+    // Escalate lên Quản lý của phòng ban; nếu không có, escalate lên BGĐ
     const leaderRows = await all<any>(
       `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-       WHERE r.name = 'Leader' AND u.department_id = :dept LIMIT 1`,
+       WHERE r.name = 'Quản lý' AND u.department_id = :dept LIMIT 1`,
       { dept: item.department_id }
     );
     let target = leaderRows[0];
     if (!target) {
       const omRows = await all<any>(
-        `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'Operation Manager' LIMIT 1`
+        `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'BGĐ' LIMIT 1`
       );
       target = omRows[0];
     }

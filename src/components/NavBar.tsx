@@ -67,7 +67,7 @@ export default function NavBar() {
                 )}
               </Link>
             ))}
-            {me?.roleName === "Admin" && (
+            {me?.roleName === "BGĐ" && (
               <Link
                 href="/users"
                 className={`px-3 py-1.5 rounded-md text-sm ${

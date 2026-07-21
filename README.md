@@ -13,6 +13,17 @@
 → Xem file **`DEPLOY.md`** — hướng dẫn deploy lên **Vercel + Supabase** hoặc **Netlify + Supabase**
 (miễn phí, ~20-30 phút, đã có sẵn cấu hình cho cả 2 nền tảng: `vercel.json` và `netlify.toml`).
 
+## Cập nhật mới nhất (đợt 4 - theo file Thay_đổi.docx)
+
+- **Đổi hệ Vai trò**: BGĐ / Quản lý / Sản xuất trực tiếp / Gián tiếp / Khách hàng (thay cho Admin/Operation Manager/Leader/Supervisor/Employee/Viewer cũ) — xem bảng phân quyền chi tiết trong `src/lib/auth.ts`
+- Thêm 2 bộ phận cấp cao nhất: **Ban giám đốc**, **Phòng dịch vụ khách hàng**
+- **Cơ chế Đề xuất**: người được giao việc (owner) đề nghị Hoàn thành/Hủy/Sửa nội dung-hạn, gửi cho người giao việc (assigned_by_id) duyệt trước khi có hiệu lực thật — không tự ý đổi trạng thái nữa
+- **"Việc của tôi"** giờ hiển thị cả việc gán theo đúng Vị trí chịu trách nhiệm của bạn, không chỉ việc gán trực tiếp
+- **Đăng nhập lại khi đóng trình duyệt** — không còn tự động giữ đăng nhập 7 ngày
+- Toàn bộ ô mật khẩu có nút hiện/ẩn (icon con mắt)
+- Trang Người dùng có nút **"Sửa"** để đổi vai trò/bộ phận/vị trí ngay trong app (không cần vào Supabase)
+- Nếu đang cập nhật từ bản deploy cũ hơn, chạy `db/migration_005_new_roles.sql` rồi `db/migration_006_proposals.sql` (xem `DEPLOY.md`)
+
 ## Cập nhật mới nhất (đợt 2 - theo file Thay_đổi.docx)
 
 - **Xoá 7 tài khoản demo** (bao gồm cả "Phạm Quang" mẫu ban đầu) — hệ thống giờ chỉ còn 1 tài

@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       );
     }
 
-    // Đóng việc: chỉ Leader/OM/Admin hoặc chính người tạo
+    // Đóng việc: chỉ Quản lý/BGĐ hoặc chính người tạo
     if (toStatus === "closed" && !(canCloseConfirm(user.roleName) || item.creator_id === user.id)) {
       return NextResponse.json({ error: "Bạn không có quyền xác nhận đóng việc" }, { status: 403 });
     }

@@ -4,7 +4,17 @@ import { useParams, useRouter } from "next/navigation";
 import { PriorityBadge, StatusBadge, TypeLabel } from "@/components/Badges";
 import SlaCountdown from "@/components/SlaCountdown";
 
-const NEXT_STATUS_LABEL: Record<string, { to: string; label: string; needNote?: boolean; needReason?: boolean }[]> = {
+// Các bước KHÔNG cần duyệt (owner tự làm trực tiếp) - chỉ chuyển trạng thái "nhẹ"
+const DIRECT_ACTIONS: Record<string, { to: string; label: string; needReason?: boolean }[]> = {
+  new: [{ to: "cancelled", label: "Hủy việc", needReason: true }],
+  assigned: [{ to: "doing", label: "Bắt đầu xử lý" }],
+  doing: [{ to: "waiting", label: "Chuyển sang Chờ", needReason: true }],
+  waiting: [{ to: "doing", label: "Tiếp tục xử lý" }],
+};
+
+// Các bước dành cho người KHÔNG PHẢI owner (Quản lý/BGĐ can thiệp trực tiếp khi cần,
+// hoặc xử lý các bước sau khi đề xuất đã ở trạng thái completed từ luồng cũ)
+const MANAGER_DIRECT_ACTIONS: Record<string, { to: string; label: string; needNote?: boolean; needReason?: boolean }[]> = {
   new: [{ to: "cancelled", label: "Hủy việc", needReason: true }],
   assigned: [{ to: "doing", label: "Bắt đầu xử lý" }, { to: "cancelled", label: "Hủy việc", needReason: true }],
   doing: [
@@ -23,6 +33,12 @@ function fmt(dt: string) {
   return new Date(dt).toLocaleString("vi-VN");
 }
 
+const PROPOSAL_TYPE_LABEL: Record<string, string> = {
+  complete: "Đề nghị hoàn thành",
+  cancel: "Đề nghị hủy việc",
+  edit: "Đề nghị sửa nội dung/hạn",
+};
+
 export default function WorkItemDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -34,6 +50,10 @@ export default function WorkItemDetailPage() {
   const [escalateTo, setEscalateTo] = useState("");
   const [escalateReason, setEscalateReason] = useState("");
   const [showEscalate, setShowEscalate] = useState(false);
+  const [showEditProposal, setShowEditProposal] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
   const [error, setError] = useState("");
   const [assigning, setAssigning] = useState(false);
 
@@ -50,6 +70,14 @@ export default function WorkItemDetailPage() {
   }, [id]);
 
   if (!item) return <div className="text-gray-400 text-sm">Đang tải...</div>;
+
+  const isOwner = me && item.owner_id === me.id;
+  const canReview = me && (
+    item.assigned_by_id ? item.assigned_by_id === me.id
+      : (item.creator_id === me.id || ["BGĐ", "Quản lý"].includes(me.roleName))
+  );
+  const pendingProposals = (item.proposals || []).filter((p: any) => p.status === "pending");
+  const activeStatus = ["assigned", "doing", "waiting"].includes(item.status);
 
   async function assignOwner(ownerId: string) {
     setAssigning(true);
@@ -87,6 +115,48 @@ export default function WorkItemDetailPage() {
     else setError((await res.json()).error);
   }
 
+  async function doPropose(type: "complete" | "cancel", needText: string) {
+    const note = prompt(`${needText} (bắt buộc):`);
+    if (!note) return;
+    setError("");
+    const res = await fetch(`/api/work-items/${id}/propose`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, note }),
+    });
+    if (res.ok) load();
+    else setError((await res.json()).error);
+  }
+
+  function openEditProposal() {
+    setEditTitle(item.title);
+    setEditDescription(item.description ?? "");
+    const d = new Date(item.deadline);
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    setEditDeadline(new Date(d.getTime() - tzOffset).toISOString().slice(0, 16));
+    setShowEditProposal(true);
+  }
+
+  async function submitEditProposal(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const note = prompt("Lý do đề nghị sửa (bắt buộc):");
+    if (!note) return;
+    const res = await fetch(`/api/work-items/${id}/propose`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "edit",
+        note,
+        proposed_title: editTitle !== item.title ? editTitle : undefined,
+        proposed_description: editDescription !== (item.description ?? "") ? editDescription : undefined,
+        proposed_deadline: new Date(editDeadline).toISOString() !== item.deadline ? new Date(editDeadline).toISOString() : undefined,
+      }),
+    });
+    if (res.ok) { setShowEditProposal(false); load(); }
+    else setError((await res.json()).error);
+  }
+
   async function doComment() {
     if (!comment.trim()) return;
     const res = await fetch(`/api/work-items/${id}/comments`, {
@@ -107,7 +177,19 @@ export default function WorkItemDetailPage() {
     if (res.ok) { setShowEscalate(false); setEscalateReason(""); load(); }
   }
 
-  const nextActions = NEXT_STATUS_LABEL[item.status] || [];
+  async function reviewProposal(proposalId: string, action: "approve" | "reject") {
+    const review_note = action === "reject" ? prompt("Lý do từ chối (không bắt buộc):") ?? undefined : undefined;
+    const res = await fetch(`/api/proposals/${proposalId}/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ review_note }),
+    });
+    if (res.ok) load();
+    else setError((await res.json()).error);
+  }
+
+  const directActions = DIRECT_ACTIONS[item.status] || [];
+  const managerActions = MANAGER_DIRECT_ACTIONS[item.status] || [];
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -170,15 +252,34 @@ export default function WorkItemDetailPage() {
               </div>
             </>
           )}
-          {nextActions.map((a) => (
-            <button
-              key={a.to}
-              onClick={() => doStatusChange(a.to, a.needNote, a.needReason)}
-              className="btn btn-secondary text-sm"
-            >
+
+          {/* Owner: thao tác nhẹ trực tiếp + đề xuất cho các thay đổi quan trọng */}
+          {isOwner && activeStatus && (
+            <>
+              {directActions.map((a) => (
+                <button key={a.to} onClick={() => doStatusChange(a.to, false, a.needReason)} className="btn btn-secondary text-sm">
+                  {a.label}
+                </button>
+              ))}
+              <button onClick={() => doPropose("complete", "Ghi chú kết quả hoàn thành")} className="btn btn-primary text-sm">
+                ✅ Đề nghị hoàn thành
+              </button>
+              <button onClick={() => doPropose("cancel", "Lý do đề nghị hủy")} className="btn btn-secondary text-sm text-red-600">
+                🗑 Đề nghị hủy việc
+              </button>
+              <button onClick={openEditProposal} className="btn btn-secondary text-sm">
+                ✏️ Sửa nội dung / hạn
+              </button>
+            </>
+          )}
+
+          {/* Không phải owner (VD Quản lý/BGĐ can thiệp trực tiếp khi cần) */}
+          {!isOwner && managerActions.map((a) => (
+            <button key={a.to} onClick={() => doStatusChange(a.to, a.needNote, a.needReason)} className="btn btn-secondary text-sm">
               {a.label}
             </button>
           ))}
+
           {!["closed", "cancelled"].includes(item.status) && (
             <button onClick={() => setShowEscalate((s) => !s)} className="btn btn-secondary text-sm text-orange-600">
               🚨 Escalate
@@ -186,11 +287,24 @@ export default function WorkItemDetailPage() {
           )}
         </div>
 
+        {showEditProposal && (
+          <form onSubmit={submitEditProposal} className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
+            <p className="text-xs text-gray-500">Đề nghị sửa nội dung/hạn - gửi cho người giao việc duyệt trước khi có hiệu lực.</p>
+            <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Tiêu đề" />
+            <textarea className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Mô tả" rows={2} />
+            <input type="datetime-local" className="input" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowEditProposal(false)} className="btn btn-secondary text-sm">Hủy</button>
+              <button type="submit" className="btn btn-primary text-sm">Gửi đề nghị</button>
+            </div>
+          </form>
+        )}
+
         {showEscalate && (
           <div className="mt-3 p-3 bg-orange-50 rounded-lg space-y-2">
             <select className="input" value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)}>
               <option value="">-- Escalate cho ai --</option>
-              {users.filter((u) => ["Leader", "Operation Manager", "Admin"].includes(u.role_name)).map((u) => (
+              {users.filter((u) => ["Quản lý", "BGĐ"].includes(u.role_name)).map((u) => (
                 <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>
               ))}
             </select>
@@ -204,6 +318,38 @@ export default function WorkItemDetailPage() {
           </div>
         )}
       </div>
+
+      {pendingProposals.length > 0 && (
+        <div className="card border-2 border-brand-200">
+          <h3 className="text-sm font-semibold text-brand-700 mb-3">📋 Đề xuất đang chờ duyệt</h3>
+          <div className="space-y-3">
+            {pendingProposals.map((p: any) => (
+              <div key={p.id} className="bg-brand-50 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm">{PROPOSAL_TYPE_LABEL[p.type]}</span>
+                  <span className="text-xs text-gray-400">{fmt(p.created_at)}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">Người đề xuất: {p.proposed_by_name}</p>
+                {p.note && <p className="text-sm text-gray-600 mt-1">Ghi chú: {p.note}</p>}
+                {p.type === "edit" && (
+                  <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                    {p.proposed_title && <div>Tiêu đề mới: {p.proposed_title}</div>}
+                    {p.proposed_description && <div>Mô tả mới: {p.proposed_description}</div>}
+                    {p.proposed_deadline && <div>Deadline mới: {fmt(p.proposed_deadline)}</div>}
+                  </div>
+                )}
+                {canReview && (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => reviewProposal(p.id, "approve")} className="btn btn-primary text-xs px-3 py-1">Duyệt</button>
+                    <button onClick={() => reviewProposal(p.id, "reject")} className="btn btn-secondary text-xs px-3 py-1">Từ chối</button>
+                  </div>
+                )}
+                {!canReview && <p className="text-xs text-gray-400 mt-1">Đang chờ người giao việc duyệt...</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Bình luận</h3>
@@ -241,6 +387,20 @@ export default function WorkItemDetailPage() {
             {item.escalations.map((e: any) => (
               <div key={e.id} className="text-sm text-gray-600">
                 {e.is_auto ? "[Tự động]" : e.escalated_from_name} → {e.escalated_to_name}: {e.reason}
+              </div>
+            ))}
+          </div>
+        )}
+        {item.proposals?.filter((p: any) => p.status !== "pending").length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-50">
+            <h4 className="text-xs font-semibold text-gray-500 mb-1">Lịch sử đề xuất</h4>
+            {item.proposals.filter((p: any) => p.status !== "pending").map((p: any) => (
+              <div key={p.id} className="text-sm text-gray-600">
+                {PROPOSAL_TYPE_LABEL[p.type]} bởi {p.proposed_by_name} —{" "}
+                <span className={p.status === "approved" ? "text-green-600" : "text-red-500"}>
+                  {p.status === "approved" ? "Đã duyệt" : "Đã từ chối"}
+                </span>{" "}
+                bởi {p.reviewed_by_name} {p.review_note ? `(${p.review_note})` : ""}
               </div>
             ))}
           </div>

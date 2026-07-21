@@ -25,6 +25,15 @@ export async function GET(req: NextRequest) {
     const ownerId = sp.get("owner_id");
     if (ownerId) { where.push("wi.owner_id = :owner_id"); params.owner_id = ownerId; }
 
+    // "Việc của tôi": lấy cả việc gán trực tiếp (owner_id) LẪN việc gán theo đúng
+    // Vị trí chịu trách nhiệm của tôi (position_id) - mục 3 Thay_đổi.docx
+    const mine = sp.get("mine");
+    if (mine === "true") {
+      where.push("(wi.owner_id = :me_id OR (:me_position_id::text IS NOT NULL AND wi.position_id = :me_position_id))");
+      params.me_id = user.id;
+      params.me_position_id = user.positionId ?? null;
+    }
+
     const departmentId = sp.get("department_id");
     if (departmentId) { where.push("wi.department_id = :department_id"); params.department_id = departmentId; }
 
@@ -53,8 +62,8 @@ export async function GET(req: NextRequest) {
       params.person_q = `%${personQ}%`;
     }
 
-    // Viewer chỉ thấy việc do mình tạo hoặc customer_request liên quan
-    if (user.roleName === "Viewer") {
+    // Khách hàng chỉ thấy việc do mình tạo hoặc customer_request liên quan
+    if (user.roleName === "Khách hàng") {
       where.push("wi.creator_id = :viewer_id");
       params.viewer_id = user.id;
     }
@@ -148,10 +157,10 @@ export async function POST(req: NextRequest) {
     );
 
     // Người chịu trách nhiệm giờ chỉ là ghi chú tự do (owner_name_manual), không gắn tài khoản
-    // => luôn thông báo cho Leader/OM cùng phòng ban để họ gán chính thức qua nút "Gán việc"
+    // => luôn thông báo cho Quản lý/BGĐ cùng phòng ban để họ gán chính thức qua nút "Gán việc"
     const leaders = await all<any>(
       `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-       WHERE r.name IN ('Leader','Operation Manager','Admin')
+       WHERE r.name IN ('Quản lý','BGĐ')
        AND (u.department_id = :dept OR :dept2::text IS NULL)`,
       { dept: department_id ?? null, dept2: department_id ?? null }
     );

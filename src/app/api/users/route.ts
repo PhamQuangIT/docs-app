@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     if (!canManageUsers(user.roleName)) {
-      return NextResponse.json({ error: "Chỉ Admin được tạo user" }, { status: 403 });
+      return NextResponse.json({ error: "Chỉ BGĐ được tạo user" }, { status: 403 });
     }
     const body = await req.json();
     const { full_name, email, password, role_id, department_id, position_id, phone } = body;

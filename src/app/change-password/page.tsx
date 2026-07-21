@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -55,33 +56,15 @@ export default function ChangePasswordPage() {
         )}
         <div>
           <label className="text-xs text-gray-500">Mật khẩu hiện tại</label>
-          <input
-            type="password"
-            className="input mt-1"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
-          />
+          <PasswordInput className="input mt-1" value={currentPassword} onChange={setCurrentPassword} />
         </div>
         <div>
           <label className="text-xs text-gray-500">Mật khẩu mới (tối thiểu 6 ký tự)</label>
-          <input
-            type="password"
-            className="input mt-1"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-          />
+          <PasswordInput className="input mt-1" value={newPassword} onChange={setNewPassword} />
         </div>
         <div>
           <label className="text-xs text-gray-500">Xác nhận mật khẩu mới</label>
-          <input
-            type="password"
-            className="input mt-1"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
+          <PasswordInput className="input mt-1" value={confirmPassword} onChange={setConfirmPassword} />
         </div>
         <button className="btn btn-primary w-full" disabled={loading}>
           {loading ? "Đang lưu..." : "Đổi mật khẩu"}

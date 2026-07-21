@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const user = await requireUser();
     if (!canManageUsers(user.roleName)) {
-      return NextResponse.json({ error: "Chỉ Admin được sửa user" }, { status: 403 });
+      return NextResponse.json({ error: "Chỉ BGĐ được sửa user" }, { status: 403 });
     }
     const body = await req.json();
     const allowed = ["full_name", "phone", "role_id", "department_id", "position_id", "is_active"];
@@ -37,7 +37,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     const user = await requireUser();
     if (!canManageUsers(user.roleName)) {
-      return NextResponse.json({ error: "Chỉ Admin được xoá user" }, { status: 403 });
+      return NextResponse.json({ error: "Chỉ BGĐ được xoá user" }, { status: 403 });
     }
     if (params.id === user.id) {
       return NextResponse.json({ error: "Không thể tự xoá tài khoản của chính mình" }, { status: 400 });

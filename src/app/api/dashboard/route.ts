@@ -26,9 +26,11 @@ export async function GET() {
       `SELECT COUNT(*) as cnt FROM work_items WHERE completed_at::date = CURRENT_DATE`
     );
     const myTask = await all(
-      `SELECT * FROM work_items WHERE owner_id = :owner_id AND status NOT IN ('closed','cancelled')
+      `SELECT * FROM work_items
+       WHERE (owner_id = :owner_id OR (:my_position_id::text IS NOT NULL AND position_id = :my_position_id))
+       AND status NOT IN ('closed','cancelled')
        ORDER BY deadline ASC LIMIT 20`,
-      { owner_id: user.id }
+      { owner_id: user.id, my_position_id: user.positionId ?? null }
     );
     const deadlineToday = await all(
       `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
