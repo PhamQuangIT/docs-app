@@ -19,7 +19,7 @@ export async function runOverdueCheck() {
   const toMarkOverdue = await all<any>(
     `SELECT * FROM work_items
      WHERE is_overdue = false
-     AND status NOT IN ('completed','closed','cancelled')
+     AND status NOT IN ('completed','cancelled')
      AND deadline < NOW()`
   );
   for (const item of toMarkOverdue) {
@@ -39,7 +39,7 @@ export async function runOverdueCheck() {
   // 2) Cảnh báo gần đến hạn (chưa từng thông báo deadline_near cho item này)
   const nearDeadlineItems = await all<any>(
     `SELECT wi.* FROM work_items wi
-     WHERE wi.status NOT IN ('completed','closed','cancelled')
+     WHERE wi.status NOT IN ('completed','cancelled')
      AND wi.is_overdue = false
      AND wi.deadline <= NOW() + INTERVAL '${DEADLINE_NEAR_HOURS} hours'
      AND wi.deadline > NOW()
@@ -56,7 +56,7 @@ export async function runOverdueCheck() {
   const overdueUnescalated = await all<any>(
     `SELECT wi.* FROM work_items wi
      WHERE wi.is_overdue = true
-     AND wi.status NOT IN ('completed','closed','cancelled')
+     AND wi.status NOT IN ('completed','cancelled')
      AND NOT EXISTS (
        SELECT 1 FROM escalations e WHERE e.work_item_id = wi.id AND e.is_auto = true
      )`

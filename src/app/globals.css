@@ -15,12 +15,14 @@ body {
 .badge-normal { @apply bg-blue-100 text-blue-700; }
 .badge-low { @apply bg-gray-100 text-gray-600; }
 
-.status-new { @apply bg-slate-100 text-slate-700; }
-.status-assigned { @apply bg-indigo-100 text-indigo-700; }
-.status-doing { @apply bg-amber-100 text-amber-700; }
-.status-waiting { @apply bg-purple-100 text-purple-700; }
-.status-completed { @apply bg-teal-100 text-teal-700; }
-.status-closed { @apply bg-green-100 text-green-700; }
+.status-draft { @apply bg-slate-100 text-slate-700; }
+.status-pending_acceptance { @apply bg-indigo-100 text-indigo-700; }
+.status-in_progress { @apply bg-amber-100 text-amber-700; }
+.status-pending_change_approval { @apply bg-sky-100 text-sky-700; }
+.status-pending_completion_approval { @apply bg-cyan-100 text-cyan-700; }
+.status-rework_requested { @apply bg-purple-100 text-purple-700; }
+.status-acceptance_rejected { @apply bg-rose-100 text-rose-700; }
+.status-completed { @apply bg-green-100 text-green-700; }
 .status-cancelled { @apply bg-gray-200 text-gray-600; }
 
 .card {

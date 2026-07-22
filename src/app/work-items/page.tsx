@@ -15,10 +15,21 @@ const TYPE_TABS = [
   { value: "management_task", label: "Việc BGD" },
 ];
 
-const STATUS_OPTIONS = ["", "new", "assigned", "doing", "waiting", "completed", "closed", "cancelled"];
+const STATUS_OPTIONS = [
+  "", "draft", "pending_acceptance", "in_progress", "pending_change_approval",
+  "pending_completion_approval", "rework_requested", "acceptance_rejected", "completed", "cancelled",
+];
 const STATUS_LABEL: Record<string, string> = {
-  "": "Tất cả trạng thái", new: "Mới", assigned: "Đã giao", doing: "Đang xử lý",
-  waiting: "Chờ", completed: "Hoàn thành", closed: "Đã đóng", cancelled: "Đã hủy",
+  "": "Tất cả trạng thái",
+  draft: "Nháp",
+  pending_acceptance: "Chờ tiếp nhận",
+  in_progress: "Đang thực hiện",
+  pending_change_approval: "Chờ duyệt thay đổi",
+  pending_completion_approval: "Chờ duyệt hoàn thành",
+  rework_requested: "Yêu cầu xử lý lại",
+  acceptance_rejected: "Từ chối tiếp nhận",
+  completed: "Hoàn thành",
+  cancelled: "Đã hủy",
 };
 
 const FILTER_STORAGE_KEY = "docs_app_work_items_filters";

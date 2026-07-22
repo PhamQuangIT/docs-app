@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
     const rows = await all(
       `SELECT ${groupCol} as group_label,
               COUNT(*)::int as total,
-              SUM(CASE WHEN wi.status = 'closed' THEN 1 ELSE 0 END)::int as closed_count,
-              SUM(CASE WHEN wi.status = 'closed' AND wi.is_overdue = false THEN 1 ELSE 0 END)::int as on_time_count,
+              SUM(CASE WHEN wi.status = 'completed' THEN 1 ELSE 0 END)::int as closed_count,
+              SUM(CASE WHEN wi.status = 'completed' AND wi.is_overdue = false THEN 1 ELSE 0 END)::int as on_time_count,
               SUM(CASE WHEN wi.is_overdue = true THEN 1 ELSE 0 END)::int as overdue_count
        FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id

@@ -10,12 +10,14 @@ export function PriorityBadge({ priority }: { priority: string }) {
 
 export function StatusBadge({ status }: { status: string }) {
   const labels: Record<string, string> = {
-    new: "Mới",
-    assigned: "Đã giao",
-    doing: "Đang xử lý",
-    waiting: "Chờ",
+    draft: "Nháp",
+    pending_acceptance: "Chờ tiếp nhận",
+    in_progress: "Đang thực hiện",
+    pending_change_approval: "Chờ duyệt thay đổi",
+    pending_completion_approval: "Chờ duyệt hoàn thành",
+    rework_requested: "Yêu cầu xử lý lại",
+    acceptance_rejected: "Từ chối tiếp nhận",
     completed: "Hoàn thành",
-    closed: "Đã đóng",
     cancelled: "Đã hủy",
   };
   return <span className={`badge status-${status}`}>{labels[status] ?? status}</span>;

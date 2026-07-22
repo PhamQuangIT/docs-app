@@ -19,6 +19,9 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState({ full_name: "", role_id: "", department_id: "", position_id: "" });
   const [editCustomPositionText, setEditCustomPositionText] = useState("");
   const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   async function load() {
     setUsers(await (await fetch("/api/users")).json());
@@ -78,11 +81,21 @@ export default function UsersPage() {
     });
     setEditCustomPositionText("");
     setEditError("");
+    setEditSuccess("");
+    setNewPassword("");
+    setConfirmPassword("");
   }
 
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     setEditError("");
+    setEditSuccess("");
+
+    // Reset mật khẩu chỉ áp dụng khi nhập ít nhất 1 trong 2 ô; để trống cả 2 = không đổi mật khẩu
+    if ((newPassword || confirmPassword) && newPassword !== confirmPassword) {
+      setEditError("Mật khẩu mới và xác nhận mật khẩu không khớp");
+      return;
+    }
 
     const resolved = await resolvePositionId(editForm.position_id, editCustomPositionText);
     if (resolved.error) { setEditError(resolved.error); return; }
@@ -95,11 +108,21 @@ export default function UsersPage() {
         role_id: editForm.role_id,
         department_id: editForm.department_id || null,
         position_id: resolved.id || null,
+        ...(newPassword ? { new_password: newPassword, confirm_password: confirmPassword } : {}),
       }),
     });
     if (res.ok) {
-      setEditingUser(null);
-      load();
+      const data = await res.json();
+      if (data.password_reset) {
+        setNewPassword("");
+        setConfirmPassword("");
+        setEditSuccess("Đã lưu thông tin và reset mật khẩu thành công.");
+        // Giữ modal mở 1 chút để Admin thấy thông báo thành công, rồi đóng
+        setTimeout(() => { setEditingUser(null); load(); }, 1200);
+      } else {
+        setEditingUser(null);
+        load();
+      }
     } else {
       setEditError((await res.json()).error);
     }
@@ -215,6 +238,29 @@ export default function UsersPage() {
                 />
               )}
             </div>
+            <div className="border-t border-gray-100 pt-3 space-y-2">
+              <p className="text-xs font-medium text-gray-700">Reset mật khẩu (chỉ Admin)</p>
+              <p className="text-xs text-gray-400">Để trống 2 ô bên dưới nếu không muốn đổi mật khẩu hiện tại.</p>
+              <div>
+                <label className="text-xs text-gray-500">Mật khẩu mới</label>
+                <PasswordInput
+                  className="input mt-1"
+                  placeholder="Nhập mật khẩu mới..."
+                  value={newPassword}
+                  onChange={setNewPassword}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Xác nhận mật khẩu mới</label>
+                <PasswordInput
+                  className="input mt-1"
+                  placeholder="Nhập lại mật khẩu mới..."
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                />
+              </div>
+            </div>
+            {editSuccess && <div className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">{editSuccess}</div>}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditingUser(null)} className="btn btn-secondary">Hủy</button>
               <button type="submit" className="btn btn-primary">Lưu</button>

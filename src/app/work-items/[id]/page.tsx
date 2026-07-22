@@ -4,30 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import { PriorityBadge, StatusBadge, TypeLabel } from "@/components/Badges";
 import SlaCountdown from "@/components/SlaCountdown";
 
-// Các bước KHÔNG cần duyệt (owner tự làm trực tiếp) - chỉ chuyển trạng thái "nhẹ"
-const DIRECT_ACTIONS: Record<string, { to: string; label: string; needReason?: boolean }[]> = {
-  new: [{ to: "cancelled", label: "Hủy việc", needReason: true }],
-  assigned: [{ to: "doing", label: "Bắt đầu xử lý" }],
-  doing: [{ to: "waiting", label: "Chuyển sang Chờ", needReason: true }],
-  waiting: [{ to: "doing", label: "Tiếp tục xử lý" }],
-};
-
-// Các bước dành cho người KHÔNG PHẢI owner (Quản lý/BGĐ can thiệp trực tiếp khi cần,
-// hoặc xử lý các bước sau khi đề xuất đã ở trạng thái completed từ luồng cũ)
-const MANAGER_DIRECT_ACTIONS: Record<string, { to: string; label: string; needNote?: boolean; needReason?: boolean }[]> = {
-  new: [{ to: "cancelled", label: "Hủy việc", needReason: true }],
-  assigned: [{ to: "doing", label: "Bắt đầu xử lý" }, { to: "cancelled", label: "Hủy việc", needReason: true }],
-  doing: [
-    { to: "waiting", label: "Chuyển sang Chờ", needReason: true },
-    { to: "completed", label: "Đánh dấu hoàn thành", needNote: true },
-    { to: "cancelled", label: "Hủy việc", needReason: true },
-  ],
-  waiting: [{ to: "doing", label: "Tiếp tục xử lý" }, { to: "cancelled", label: "Hủy việc", needReason: true }],
-  completed: [{ to: "closed", label: "Xác nhận đóng việc" }, { to: "doing", label: "Từ chối, xử lý lại" }],
-  closed: [{ to: "doing", label: "Mở lại (trong 48h)", needReason: true }],
-  cancelled: [],
-};
-
 function fmt(dt: string) {
   if (!dt) return "-";
   return new Date(dt).toLocaleString("vi-VN");
@@ -37,6 +13,7 @@ const PROPOSAL_TYPE_LABEL: Record<string, string> = {
   complete: "Đề nghị hoàn thành",
   cancel: "Đề nghị hủy việc",
   edit: "Đề nghị sửa nội dung/hạn",
+  reassign: "Đề nghị giao lại người khác",
 };
 
 export default function WorkItemDetailPage() {
@@ -46,7 +23,6 @@ export default function WorkItemDetailPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [me, setMe] = useState<any>(null);
   const [comment, setComment] = useState("");
-  const [assignTo, setAssignTo] = useState("");
   const [escalateTo, setEscalateTo] = useState("");
   const [escalateReason, setEscalateReason] = useState("");
   const [showEscalate, setShowEscalate] = useState(false);
@@ -54,8 +30,10 @@ export default function WorkItemDetailPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDeadline, setEditDeadline] = useState("");
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignTo, setAssignTo] = useState("");
   const [error, setError] = useState("");
-  const [assigning, setAssigning] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function load() {
     const res = await fetch(`/api/work-items/${id}`);
@@ -72,45 +50,69 @@ export default function WorkItemDetailPage() {
   if (!item) return <div className="text-gray-400 text-sm">Đang tải...</div>;
 
   const isOwner = me && item.owner_id === me.id;
-  const canReview = me && (
-    item.assigned_by_id ? item.assigned_by_id === me.id
-      : (item.creator_id === me.id || ["BGĐ", "Quản lý"].includes(me.roleName))
-  );
+  const isAssigner = me && (item.assigned_by_id ? item.assigned_by_id === me.id : item.creator_id === me.id);
+  const isManager = me && ["BGĐ", "Quản lý"].includes(me.roleName);
+  const canActAsAssigner = isAssigner || isManager;
+  const canReviewProposal = canActAsAssigner; // cùng logic quyết định đề xuất (mục 7)
   const pendingProposals = (item.proposals || []).filter((p: any) => p.status === "pending");
-  const activeStatus = ["assigned", "doing", "waiting"].includes(item.status);
-
-  async function assignOwner(ownerId: string) {
-    setAssigning(true);
-    setError("");
-    const res = await fetch(`/api/work-items/${id}/assign`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner_id: ownerId }),
-    });
-    setAssigning(false);
-    if (res.ok) { setAssignTo(""); load(); } else setError((await res.json()).error);
-  }
+  const isFinal = ["completed", "cancelled"].includes(item.status);
 
   async function doAssign() {
     if (!assignTo) return;
-    assignOwner(assignTo);
+    setBusy(true);
+    setError("");
+    const isFirstAssignment = item.status === "draft" || !item.owner_id;
+    let reason: string | null | undefined = undefined;
+    if (!isFirstAssignment) {
+      reason = prompt("Lý do đổi người chịu trách nhiệm chính (bắt buộc):");
+      if (!reason) { setBusy(false); return; }
+    }
+    const res = await fetch(`/api/work-items/${id}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner_id: assignTo, reason }),
+    });
+    setBusy(false);
+    if (res.ok) { setShowAssign(false); setAssignTo(""); load(); } else setError((await res.json()).error);
+  }
+
+  async function doAccept() {
+    setBusy(true); setError("");
+    const res = await fetch(`/api/work-items/${id}/accept`, { method: "POST" });
+    setBusy(false);
+    if (res.ok) load(); else setError((await res.json()).error);
+  }
+
+  async function doRejectAcceptance() {
+    const reason = prompt("Lý do từ chối tiếp nhận (bắt buộc):");
+    if (!reason) return;
+    setBusy(true); setError("");
+    const res = await fetch(`/api/work-items/${id}/reject-acceptance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+    setBusy(false);
+    if (res.ok) load(); else setError((await res.json()).error);
   }
 
   async function doStatusChange(to: string, needNote?: boolean, needReason?: boolean) {
     let note, reason;
     if (needNote) {
-      note = prompt("Ghi chú kết quả xử lý (bắt buộc):");
+      note = prompt("Ghi chú (bắt buộc):");
       if (!note) return;
     }
     if (needReason) {
       reason = prompt("Lý do (bắt buộc):");
       if (!reason) return;
     }
+    setBusy(true); setError("");
     const res = await fetch(`/api/work-items/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: to, note, reason }),
     });
+    setBusy(false);
     if (res.ok) load();
     else setError((await res.json()).error);
   }
@@ -188,9 +190,6 @@ export default function WorkItemDetailPage() {
     else setError((await res.json()).error);
   }
 
-  const directActions = DIRECT_ACTIONS[item.status] || [];
-  const managerActions = MANAGER_DIRECT_ACTIONS[item.status] || [];
-
   return (
     <div className="space-y-4 max-w-3xl">
       <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700">← Quay lại</button>
@@ -214,12 +213,16 @@ export default function WorkItemDetailPage() {
         <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
           <div><span className="text-gray-400">Người tạo:</span> {item.creator_name}</div>
           <div>
-            <span className="text-gray-400">Người chịu trách nhiệm:</span> {item.owner_name ?? "Chưa gán chính thức"}
+            <span className="text-gray-400">Người chịu trách nhiệm chính:</span> {item.owner_name ?? "Chưa giao"}
             {item.owner_name_manual && (
-              <span className="text-gray-400"> (ghi chú lúc tạo: {item.owner_name_manual})</span>
+              <span className="text-gray-400"> (ghi chú lịch sử: {item.owner_name_manual})</span>
             )}
           </div>
           <div><span className="text-gray-400">Người giao việc:</span> {item.assigned_by_name ?? "-"}</div>
+          <div>
+            <span className="text-gray-400">Người phối hợp:</span>{" "}
+            {item.coordinators?.length ? item.coordinators.map((c: any) => c.full_name).join(", ") : "-"}
+          </div>
           <div><span className="text-gray-400">Báo cáo cho:</span> {item.report_to_name ?? "-"}</div>
           <div><span className="text-gray-400">Bộ phận:</span> {item.department_name ?? "-"}</div>
           <div><span className="text-gray-400">Vị trí chịu trách nhiệm:</span> {item.position_name ?? "-"}</div>
@@ -234,33 +237,19 @@ export default function WorkItemDetailPage() {
         {error && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</div>}
 
         <div className="flex flex-wrap gap-2 mt-4">
-          {!item.owner_id && (
+          {/* Người chịu trách nhiệm chính: Tiếp nhận / Từ chối tiếp nhận (mục 6) */}
+          {isOwner && item.status === "pending_acceptance" && (
             <>
-              <button
-                onClick={() => me && assignOwner(me.id)}
-                disabled={assigning || !me}
-                className="btn btn-primary text-sm"
-              >
-                🙋 Gán cho tôi
+              <button onClick={doAccept} disabled={busy} className="btn btn-primary text-sm">✅ Tiếp nhận việc</button>
+              <button onClick={doRejectAcceptance} disabled={busy} className="btn btn-secondary text-sm text-red-600">
+                ❌ Từ chối tiếp nhận
               </button>
-              <div className="flex gap-2 items-center">
-                <select className="input w-56" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-                  <option value="">-- Hoặc chọn người khác --</option>
-                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
-                </select>
-                <button onClick={doAssign} className="btn btn-secondary text-sm">Gán việc</button>
-              </div>
             </>
           )}
 
-          {/* Owner: thao tác nhẹ trực tiếp + đề xuất cho các thay đổi quan trọng */}
-          {isOwner && activeStatus && (
+          {/* Người chịu trách nhiệm chính: đề xuất khi đang thực hiện (mục 7 - cần người giao việc duyệt) */}
+          {isOwner && item.status === "in_progress" && (
             <>
-              {directActions.map((a) => (
-                <button key={a.to} onClick={() => doStatusChange(a.to, false, a.needReason)} className="btn btn-secondary text-sm">
-                  {a.label}
-                </button>
-              ))}
               <button onClick={() => doPropose("complete", "Ghi chú kết quả hoàn thành")} className="btn btn-primary text-sm">
                 ✅ Đề nghị hoàn thành
               </button>
@@ -268,24 +257,69 @@ export default function WorkItemDetailPage() {
                 🗑 Đề nghị hủy việc
               </button>
               <button onClick={openEditProposal} className="btn btn-secondary text-sm">
-                ✏️ Sửa nội dung / hạn
+                ✏️ Đề nghị sửa nội dung / hạn
               </button>
             </>
           )}
 
-          {/* Không phải owner (VD Quản lý/BGĐ can thiệp trực tiếp khi cần) */}
-          {!isOwner && managerActions.map((a) => (
-            <button key={a.to} onClick={() => doStatusChange(a.to, a.needNote, a.needReason)} className="btn btn-secondary text-sm">
-              {a.label}
+          {/* Tiếp tục xử lý sau khi bị yêu cầu làm lại: người chịu trách nhiệm hoặc người giao việc */}
+          {item.status === "rework_requested" && (isOwner || canActAsAssigner) && (
+            <button onClick={() => doStatusChange("in_progress")} className="btn btn-primary text-sm">
+              ▶️ Tiếp tục xử lý
             </button>
-          ))}
+          )}
 
-          {!["closed", "cancelled"].includes(item.status) && (
+          {/* Người giao việc: các thao tác trực tiếp không cần qua đề xuất (mục 5, 8) */}
+          {canActAsAssigner && ["draft", "pending_acceptance", "acceptance_rejected"].includes(item.status) && (
+            <button onClick={() => setShowAssign((s) => !s)} className="btn btn-primary text-sm">
+              👤 {item.owner_id ? "Điều chỉnh phân công" : "Giao việc"}
+            </button>
+          )}
+          {canActAsAssigner && item.status === "in_progress" && (
+            <>
+              <button onClick={() => setShowAssign((s) => !s)} className="btn btn-secondary text-sm">
+                👤 Điều chỉnh phân công
+              </button>
+              <button onClick={() => doStatusChange("rework_requested", false, true)} className="btn btn-secondary text-sm">
+                ↩️ Yêu cầu xử lý lại
+              </button>
+            </>
+          )}
+          {canActAsAssigner && ["draft", "pending_acceptance", "in_progress", "rework_requested", "acceptance_rejected"].includes(item.status) && (
+            <button onClick={() => doStatusChange("cancelled", false, true)} className="btn btn-secondary text-sm text-red-600">
+              🚫 Hủy việc
+            </button>
+          )}
+          {canActAsAssigner && item.status === "completed" && (
+            <button onClick={() => doStatusChange("in_progress", false, true)} className="btn btn-secondary text-sm">
+              ↩️ Mở lại (trong 48h)
+            </button>
+          )}
+
+          {!isFinal && (
             <button onClick={() => setShowEscalate((s) => !s)} className="btn btn-secondary text-sm text-orange-600">
               🚨 Escalate
             </button>
           )}
         </div>
+
+        {showAssign && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
+            <p className="text-xs text-gray-500">
+              {item.owner_id
+                ? "Đổi người chịu trách nhiệm chính - cần nêu lý do, có ghi lịch sử."
+                : "Chọn người chịu trách nhiệm chính để giao việc ngay."}
+            </p>
+            <select className="input" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
+              <option value="">-- Chọn người --</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
+            </select>
+            <div className="flex gap-2">
+              <button onClick={() => setShowAssign(false)} className="btn btn-secondary text-sm">Hủy</button>
+              <button onClick={doAssign} disabled={busy || !assignTo} className="btn btn-primary text-sm">Xác nhận</button>
+            </div>
+          </div>
+        )}
 
         {showEditProposal && (
           <form onSubmit={submitEditProposal} className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
@@ -338,13 +372,16 @@ export default function WorkItemDetailPage() {
                     {p.proposed_deadline && <div>Deadline mới: {fmt(p.proposed_deadline)}</div>}
                   </div>
                 )}
-                {canReview && (
+                {p.type === "reassign" && p.proposed_owner_name && (
+                  <div className="text-xs text-gray-500 mt-1">Người được đề xuất giao lại: {p.proposed_owner_name}</div>
+                )}
+                {canReviewProposal && (
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => reviewProposal(p.id, "approve")} className="btn btn-primary text-xs px-3 py-1">Duyệt</button>
                     <button onClick={() => reviewProposal(p.id, "reject")} className="btn btn-secondary text-xs px-3 py-1">Từ chối</button>
                   </div>
                 )}
-                {!canReview && <p className="text-xs text-gray-400 mt-1">Đang chờ người giao việc duyệt...</p>}
+                {!canReviewProposal && <p className="text-xs text-gray-400 mt-1">Đang chờ người giao việc duyệt...</p>}
               </div>
             ))}
           </div>

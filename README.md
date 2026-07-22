@@ -13,6 +13,27 @@
 → Xem file **`DEPLOY.md`** — hướng dẫn deploy lên **Vercel + Supabase** hoặc **Netlify + Supabase**
 (miễn phí, ~20-30 phút, đã có sẵn cấu hình cho cả 2 nền tảng: `vercel.json` và `netlify.toml`).
 
+## Cập nhật mới nhất (đợt 5 - theo file Thay_đổi.docx 21/07/2026)
+
+**Đã xác nhận với người yêu cầu 3 điểm lớn trước khi làm:**
+1. "Người chịu trách nhiệm chính" khi tạo việc: **đổi từ nhập tay tự do sang bắt buộc chọn 1 tài khoản có sẵn**, bỏ nút "Gán việc" tách rời.
+2. Đổi **toàn bộ 7 trạng thái cũ sang đúng 9 trạng thái mới** theo tài liệu (không giữ song song 2 hệ trạng thái).
+3. "Báo cáo cho" **giữ nguyên theo Chức danh** như đợt 4 (không đổi sang chọn theo người cụ thể).
+
+**Đã làm:**
+- **Reset Password cho user** (mục 12): trang Quản lý người dùng → Sửa → 2 ô Mật khẩu mới/Xác nhận, ghi `admin_audit_log`.
+- **9 trạng thái công việc mới**: Nháp → Chờ tiếp nhận → Đang thực hiện → (Chờ duyệt thay đổi / Chờ duyệt hoàn thành / Yêu cầu xử lý lại) → Hoàn thành/Đã hủy; thêm "Từ chối tiếp nhận". Dữ liệu cũ tự động map: new→Nháp, assigned→Chờ tiếp nhận, doing/waiting→Đang thực hiện, completed/closed→Hoàn thành (chạy `db/migration_008_task_role_workflow.sql`).
+- **Tạo việc**: bắt buộc chọn Người chịu trách nhiệm chính khi bấm "Tạo và giao việc"; có nút "Lưu nháp" riêng nếu chưa xác định được người. Thêm chọn nhiều **Người phối hợp**.
+- **Vai trò theo từng việc** (`src/lib/workflow.ts`): Người tạo / Người giao việc / Người chịu trách nhiệm chính / Người phối hợp - tách biệt với vai trò toàn cục (BGĐ/Quản lý/...).
+- **Tiếp nhận / Từ chối tiếp nhận** (API mới `/accept`, `/reject-acceptance`): chỉ Người chịu trách nhiệm chính.
+- **Đề xuất** (`/propose`): 4 loại complete/cancel/edit/reassign. complete/cancel/edit chỉ Người chịu trách nhiệm chính được đề xuất (Người giao việc có thao tác trực tiếp riêng, không cần đề xuất); reassign chỉ Người giao việc đề xuất. Chỉ 1 đề xuất mở tại 1 thời điểm/việc.
+- **Thao tác trực tiếp của Người giao việc** (không qua duyệt, vì họ đã là người quyết định - mục 8): Điều chỉnh phân công (API `/assign`, đổi tên từ "Gán việc"), Sửa việc (PATCH `/work-items/:id`, bắt buộc lý do nếu đã có người chịu trách nhiệm), Yêu cầu xử lý lại, Hủy việc, Mở lại trong 48h.
+
+**Giả định/đơn giản hóa cần anh xem lại nếu chưa đúng ý:**
+- Trạng thái "Chờ" (waiting) cũ không có tương đương trực tiếp trong 9 trạng thái mới → đã gộp vào "Đang thực hiện" (lý do treo việc vẫn ghi được qua bình luận/lịch sử, không còn là 1 trạng thái riêng).
+- Đề xuất loại "reassign" (giao lại người) đã có API nhưng **chưa lộ nút riêng ngoài giao diện** - hiện tại Người giao việc dùng luôn nút "Điều chỉnh phân công" (có hiệu lực ngay, không cần ai duyệt thêm) vì họ vốn đã là cấp quyết định cuối theo mô hình hiện tại. Nếu anh cần thêm 1 lớp duyệt bởi "cấp cao hơn" cho việc đổi người, báo lại để bổ sung.
+- Trạng thái "Chờ duyệt thay đổi"/"Chờ duyệt hoàn thành" chỉ vào được qua nút đề xuất (không có nút đổi trạng thái tay trực tiếp), đúng theo mục 6 tài liệu.
+
 ## Cập nhật mới nhất (đợt 4 - theo file Thay_đổi.docx)
 
 - **Đổi hệ Vai trò**: BGĐ / Quản lý / Sản xuất trực tiếp / Gián tiếp / Khách hàng (thay cho Admin/Operation Manager/Leader/Supervisor/Employee/Viewer cũ) — xem bảng phân quyền chi tiết trong `src/lib/auth.ts`

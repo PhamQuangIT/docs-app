@@ -14,13 +14,13 @@ export async function GET() {
     const overdue = await all(
       `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
-       WHERE wi.is_overdue = true AND wi.status NOT IN ('completed','closed','cancelled')
+       WHERE wi.is_overdue = true AND wi.status NOT IN ('completed','cancelled')
        ORDER BY wi.deadline ASC LIMIT 20`
     );
     const needSupport = await all(
       `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
-       WHERE wi.status = 'waiting' ORDER BY wi.updated_at DESC LIMIT 20`
+       WHERE wi.status = 'rework_requested' ORDER BY wi.updated_at DESC LIMIT 20`
     );
     const completedToday = await get<any>(
       `SELECT COUNT(*) as cnt FROM work_items WHERE completed_at::date = CURRENT_DATE`
@@ -28,21 +28,21 @@ export async function GET() {
     const myTask = await all(
       `SELECT * FROM work_items
        WHERE (owner_id = :owner_id OR (:my_position_id::text IS NOT NULL AND position_id = :my_position_id))
-       AND status NOT IN ('closed','cancelled')
+       AND status NOT IN ('completed','cancelled')
        ORDER BY deadline ASC LIMIT 20`,
       { owner_id: user.id, my_position_id: user.positionId ?? null }
     );
     const deadlineToday = await all(
       `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
-       WHERE wi.deadline::date = CURRENT_DATE AND wi.status NOT IN ('completed','closed','cancelled')
+       WHERE wi.deadline::date = CURRENT_DATE AND wi.status NOT IN ('completed','cancelled')
        ORDER BY wi.deadline ASC LIMIT 20`
     );
     const deptPerformance = await all(
       `SELECT d.name as department_name,
               COUNT(*)::int as total,
-              SUM(CASE WHEN wi.status = 'closed' AND wi.is_overdue = false THEN 1 ELSE 0 END)::int as on_time,
-              SUM(CASE WHEN wi.status = 'closed' THEN 1 ELSE 0 END)::int as closed_count
+              SUM(CASE WHEN wi.status = 'completed' AND wi.is_overdue = false THEN 1 ELSE 0 END)::int as on_time,
+              SUM(CASE WHEN wi.status = 'completed' THEN 1 ELSE 0 END)::int as closed_count
        FROM work_items wi
        LEFT JOIN departments d ON d.id = wi.department_id
        GROUP BY d.name`
@@ -50,7 +50,7 @@ export async function GET() {
     const customerRequests = await all(
       `SELECT wi.*, c.name as customer_name FROM work_items wi
        LEFT JOIN customers c ON c.id = wi.customer_id
-       WHERE wi.type = 'customer_request' AND wi.status NOT IN ('closed','cancelled')
+       WHERE wi.type = 'customer_request' AND wi.status NOT IN ('completed','cancelled')
        ORDER BY CASE wi.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, wi.deadline ASC
        LIMIT 20`
     );

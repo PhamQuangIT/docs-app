@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 
 function formatCountdown(deadline: string, status: string): { text: string; className: string } {
-  if (["completed", "closed", "cancelled"].includes(status)) {
+  if (["completed", "cancelled"].includes(status)) {
     return { text: "", className: "" };
   }
   const diffMs = new Date(deadline).getTime() - Date.now();

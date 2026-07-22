@@ -46,19 +46,22 @@ export default function CreateWorkItemModal({
   const [description, setDescription] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [positionId, setPositionId] = useState("");
-  const [ownerNameManual, setOwnerNameManual] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+  const [coordinatorIds, setCoordinatorIds] = useState<string[]>([]);
   const [reportToId, setReportToId] = useState("");
   const [reportToCustomText, setReportToCustomText] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"draft" | "assign" | false>(false);
   const [showMore, setShowMore] = useState(false);
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/departments").then((r) => r.json()).then(setDepartments).catch(() => {});
     fetch("/api/positions").then((r) => r.json()).then(setPositions).catch(() => {});
+    fetch("/api/users").then((r) => r.json()).then(setUsers).catch(() => {});
   }, []);
 
   const khacPosition = positions.find((p) => p.name === "Khác");
@@ -70,13 +73,21 @@ export default function CreateWorkItemModal({
     setTitle(p.title);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function toggleCoordinator(userId: string) {
+    setCoordinatorIds((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
+  }
+
+  async function handleSubmit(e: React.FormEvent, saveAsDraft: boolean) {
     e.preventDefault();
     if (!title.trim()) {
       setError("Vui lòng nhập tiêu đề");
       return;
     }
-    setLoading(true);
+    if (!saveAsDraft && !ownerId) {
+      setError("Vui lòng chọn Người chịu trách nhiệm chính (hoặc bấm Lưu nháp nếu chưa xác định được người)");
+      return;
+    }
+    setLoading(saveAsDraft ? "draft" : "assign");
     setError("");
 
     let finalReportToId = reportToId;
@@ -105,8 +116,10 @@ export default function CreateWorkItemModal({
         description: description || undefined,
         department_id: departmentId || undefined,
         position_id: positionId || undefined,
-        owner_name_manual: ownerNameManual || undefined,
+        owner_id: ownerId || undefined,
+        coordinator_ids: coordinatorIds,
         report_to_id: finalReportToId || undefined,
+        save_as_draft: saveAsDraft,
       }),
     });
     setLoading(false);
@@ -120,7 +133,7 @@ export default function CreateWorkItemModal({
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40 p-4 overflow-y-auto">
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg w-full max-w-md p-5 space-y-3 my-8">
+      <form onSubmit={(e) => handleSubmit(e, false)} className="bg-white rounded-xl shadow-lg w-full max-w-md p-5 space-y-3 my-8">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-800">Tạo phát sinh mới</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -183,16 +196,42 @@ export default function CreateWorkItemModal({
           </div>
         </div>
 
+        <div>
+          <label className="text-xs text-gray-500">Người chịu trách nhiệm chính *</label>
+          <select className="input mt-1" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+            <option value="">-- Chọn người (bắt buộc để giao việc ngay) --</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            Chưa xác định được người phù hợp? Bấm &quot;Lưu nháp&quot; bên dưới, giao sau cũng được.
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={() => setShowMore((s) => !s)}
           className="text-xs text-brand-600 hover:underline"
         >
-          {showMore ? "Ẩn bớt" : "+ Thêm vị trí / người chịu trách nhiệm / báo cáo cho"}
+          {showMore ? "Ẩn bớt" : "+ Thêm người phối hợp / vị trí / báo cáo cho"}
         </button>
 
         {showMore && (
           <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+            <div>
+              <label className="text-xs text-gray-500">Người phối hợp (có thể chọn nhiều)</label>
+              <div className="mt-1 max-h-32 overflow-y-auto border border-gray-200 rounded-lg bg-white p-2 space-y-1">
+                {users.filter((u) => u.id !== ownerId).map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={coordinatorIds.includes(u.id)}
+                      onChange={() => toggleCoordinator(u.id)}
+                    />
+                    {u.full_name} <span className="text-gray-400 text-xs">({u.role_name})</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="text-xs text-gray-500">Bộ phận / nhóm</label>
               <DepartmentSelect
@@ -210,19 +249,6 @@ export default function CreateWorkItemModal({
                   .filter((p) => p.name !== "Khác" && p.name !== "Khách hàng")
                   .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Người chịu trách nhiệm (ghi chú, không gắn tài khoản)</label>
-              <input
-                className="input mt-1"
-                placeholder="VD: Nguyễn Văn A"
-                value={ownerNameManual}
-                onChange={(e) => setOwnerNameManual(e.target.value)}
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Đây chỉ là ghi chú tên, không tự kích hoạt "Việc của tôi"/thông báo. Muốn gán chính thức
-                (để người đó nhận thông báo, thấy trong "Việc của tôi"), dùng nút "Gán việc" ở trang chi tiết sau khi tạo.
-              </p>
             </div>
             <div>
               <label className="text-xs text-gray-500">Báo cáo cho (chức danh)</label>
@@ -254,8 +280,16 @@ export default function CreateWorkItemModal({
 
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="btn btn-secondary">Hủy</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? "Đang tạo..." : "Tạo việc"}
+          <button
+            type="button"
+            onClick={(e) => handleSubmit(e as any, true)}
+            className="btn btn-secondary"
+            disabled={!!loading}
+          >
+            {loading === "draft" ? "Đang lưu..." : "Lưu nháp"}
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!!loading}>
+            {loading === "assign" ? "Đang tạo..." : "Tạo và giao việc"}
           </button>
         </div>
       </form>

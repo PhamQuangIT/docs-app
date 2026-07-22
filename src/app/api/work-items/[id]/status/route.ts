@@ -1,31 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get, run } from "@/lib/db";
-import { requireUser, canCloseConfirm } from "@/lib/auth";
+import { requireUser, canAssign, canCloseConfirm } from "@/lib/auth";
 import { notify } from "@/lib/notify";
-import { isTransitionAllowed } from "@/lib/workflow";
+import { isTransitionAllowed, isAssigner, isResponsible, STATUSES } from "@/lib/workflow";
 import { v4 as uuid } from "uuid";
 
 // PATCH /api/work-items/:id/status  body: { status, note?, reason? }
+// Chỉ dùng cho các chuyển trạng thái TRỰC TIẾP (không cần luồng đề xuất/duyệt):
+//   draft -> cancelled                (Người tạo / Người giao việc)
+//   pending_acceptance -> cancelled   (Người giao việc - Hủy việc trực tiếp, mục 8)
+//   in_progress -> rework_requested   (Người giao việc - Yêu cầu xử lý lại trực tiếp, mục 8)
+//   in_progress -> cancelled          (Người giao việc - Hủy việc, mục 8)
+//   rework_requested -> in_progress   (Người chịu trách nhiệm tiếp tục xử lý, hoặc Người giao việc)
+//   rework_requested -> cancelled     (Người giao việc - Hủy việc)
+//   completed -> in_progress          (Mở lại trong 48h, quyền quản lý + lý do, mục 8)
+// KHÔNG dùng route này cho pending_change_approval / pending_completion_approval - hai trạng thái đó
+// chỉ được hệ thống chuyển tự động khi duyệt/từ chối đề xuất (/api/proposals/:id/approve|reject).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
     const body = await req.json();
     const { status: toStatus, note, reason } = body;
 
+    if ([STATUSES.PENDING_CHANGE_APPROVAL, STATUSES.PENDING_COMPLETION_APPROVAL].includes(toStatus)) {
+      return NextResponse.json(
+        { error: "Trạng thái này chỉ được chuyển qua luồng đề xuất (dùng nút Đề nghị... thay vì đổi trạng thái trực tiếp)" },
+        { status: 400 }
+      );
+    }
+
     const item = await get<any>(`SELECT * FROM work_items WHERE id = :id`, { id: params.id });
     if (!item) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
 
     const fromStatus = item.status;
 
-    // Reopen từ Closed chỉ trong 48h
-    if (fromStatus === "closed" && toStatus === "doing") {
-      const closedAt = item.closed_at ? new Date(item.closed_at).getTime() : 0;
-      const hoursSince = (Date.now() - closedAt) / 3600000;
+    // Mở lại từ Hoàn thành chỉ trong 48h
+    if (fromStatus === STATUSES.COMPLETED && toStatus === STATUSES.IN_PROGRESS) {
+      const completedAt = item.closed_at ? new Date(item.closed_at).getTime() : 0;
+      const hoursSince = (Date.now() - completedAt) / 3600000;
       if (hoursSince > 48) {
-        return NextResponse.json({ error: "Đã quá 48h kể từ khi đóng, không thể mở lại" }, { status: 400 });
+        return NextResponse.json({ error: "Đã quá 48h kể từ khi hoàn thành, không thể mở lại" }, { status: 400 });
       }
       if (!reason) {
         return NextResponse.json({ error: "Cần nêu lý do khi mở lại việc" }, { status: 400 });
+      }
+      if (!(canCloseConfirm(user.roleName) || item.creator_id === user.id)) {
+        return NextResponse.json({ error: "Bạn không có quyền mở lại việc này" }, { status: 403 });
       }
     }
 
@@ -36,31 +56,37 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       );
     }
 
-    // Đóng việc: chỉ Quản lý/BGĐ hoặc chính người tạo
-    if (toStatus === "closed" && !(canCloseConfirm(user.roleName) || item.creator_id === user.id)) {
-      return NextResponse.json({ error: "Bạn không có quyền xác nhận đóng việc" }, { status: 403 });
+    // Hủy việc: chỉ Người giao việc / cấp duyệt (Quản lý/BGĐ), bắt buộc lý do (mục 8)
+    if (toStatus === STATUSES.CANCELLED && !(isAssigner(item, user.id) || canAssign(user.roleName))) {
+      return NextResponse.json({ error: "Chỉ người giao việc mới có quyền hủy việc" }, { status: 403 });
     }
-
-    if (toStatus === "completed" && !note) {
-      return NextResponse.json({ error: "Cần ghi chú kết quả khi hoàn thành việc" }, { status: 400 });
-    }
-
-    if (toStatus === "waiting" && !reason) {
-      return NextResponse.json({ error: "Cần nêu lý do khi chuyển sang trạng thái Chờ" }, { status: 400 });
-    }
-
-    if (toStatus === "cancelled" && !reason) {
+    if (toStatus === STATUSES.CANCELLED && !reason) {
       return NextResponse.json({ error: "Cần nêu lý do khi hủy việc" }, { status: 400 });
     }
 
-    const extra: Record<string, any> = {};
-    if (toStatus === "completed") extra.completed_at = new Date().toISOString();
-    if (toStatus === "closed") extra.closed_at = new Date().toISOString();
-    if (toStatus === "waiting") extra.waiting_reason = reason;
-    if (toStatus === "cancelled") extra.cancel_reason = reason;
-    if (toStatus === "doing" && fromStatus === "closed") extra.closed_at = null; // reopen
+    // Yêu cầu xử lý lại trực tiếp: chỉ Người giao việc / cấp duyệt, bắt buộc lý do (mục 8)
+    if (toStatus === STATUSES.REWORK_REQUESTED) {
+      if (!(isAssigner(item, user.id) || canAssign(user.roleName))) {
+        return NextResponse.json({ error: "Chỉ người giao việc mới có quyền yêu cầu xử lý lại" }, { status: 403 });
+      }
+      if (!reason) {
+        return NextResponse.json({ error: "Cần nêu lý do khi yêu cầu xử lý lại" }, { status: 400 });
+      }
+    }
 
-    const isOverdueReset = ["completed", "closed", "cancelled"].includes(toStatus) ? false : item.is_overdue;
+    // Tiếp tục xử lý sau "Yêu cầu xử lý lại": Người chịu trách nhiệm hoặc Người giao việc
+    if (fromStatus === STATUSES.REWORK_REQUESTED && toStatus === STATUSES.IN_PROGRESS) {
+      if (!(isResponsible(item, user.id) || isAssigner(item, user.id) || canAssign(user.roleName))) {
+        return NextResponse.json({ error: "Bạn không có quyền chuyển tiếp việc này" }, { status: 403 });
+      }
+    }
+
+    const extra: Record<string, any> = {};
+    if (toStatus === STATUSES.COMPLETED) extra.completed_at = new Date().toISOString();
+    if (toStatus === STATUSES.CANCELLED) extra.cancel_reason = reason;
+    if (toStatus === STATUSES.IN_PROGRESS && fromStatus === STATUSES.COMPLETED) extra.closed_at = null; // reopen
+
+    const isOverdueReset = [STATUSES.COMPLETED, STATUSES.CANCELLED].includes(toStatus) ? false : item.is_overdue;
 
     const setClauses = [
       "status = :status",
@@ -82,7 +108,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       { id: uuid(), wi: params.id, from_status: fromStatus, to_status: toStatus, changed_by: user.id, note: note ?? reason ?? null }
     );
 
-    // Thông báo cho các bên liên quan
     if (item.creator_id) await notify(item.creator_id, "status_change", `Việc "${item.title}" chuyển sang trạng thái ${toStatus}`, params.id);
     if (item.owner_id && item.owner_id !== user.id) await notify(item.owner_id, "status_change", `Việc "${item.title}" chuyển sang trạng thái ${toStatus}`, params.id);
 

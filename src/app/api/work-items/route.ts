@@ -25,11 +25,15 @@ export async function GET(req: NextRequest) {
     const ownerId = sp.get("owner_id");
     if (ownerId) { where.push("wi.owner_id = :owner_id"); params.owner_id = ownerId; }
 
-    // "Việc của tôi": lấy cả việc gán trực tiếp (owner_id) LẪN việc gán theo đúng
-    // Vị trí chịu trách nhiệm của tôi (position_id) - mục 3 Thay_đổi.docx
+    // "Việc của tôi": việc gán trực tiếp (owner_id) HOẶC gán theo đúng Vị trí chịu trách nhiệm của tôi
+    // (mục 3 Thay_đổi.docx) HOẶC việc tôi là Người phối hợp (mới, mục 3+4)
     const mine = sp.get("mine");
     if (mine === "true") {
-      where.push("(wi.owner_id = :me_id OR (:me_position_id::text IS NOT NULL AND wi.position_id = :me_position_id))");
+      where.push(
+        `(wi.owner_id = :me_id
+          OR (:me_position_id::text IS NOT NULL AND wi.position_id = :me_position_id)
+          OR EXISTS (SELECT 1 FROM work_item_coordinators wic WHERE wic.work_item_id = wi.id AND wic.user_id = :me_id))`
+      );
       params.me_id = user.id;
       params.me_position_id = user.positionId ?? null;
     }
@@ -100,15 +104,21 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/work-items  - tạo nhanh: title, type, deadline, priority bắt buộc;
-// vị trí chịu trách nhiệm, người chịu trách nhiệm (ghi chú tự do), báo cáo cho có thể để trống và bổ sung sau
+// POST /api/work-items
+// body: { type, title, deadline, priority (bắt buộc), description?, department_id?, position_id?,
+//         customer_id?, meeting_ref?, report_to_id?, owner_id?, coordinator_ids?, save_as_draft? }
+//
+// Theo mục 4 Thay_đổi.docx: "Người chịu trách nhiệm chính" (owner_id) giờ BẮT BUỘC chọn 1 tài khoản có sẵn
+// khi bấm "Tạo và giao việc" (save_as_draft = false/không gửi) - việc được tạo và giao ngay, trạng thái
+// "Chờ tiếp nhận". Nếu bấm "Lưu nháp" (save_as_draft = true), có thể chưa chọn owner_id, trạng thái "Nháp".
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     const body = await req.json();
     const {
       type, title, description, priority, deadline,
-      owner_name_manual, department_id, position_id, customer_id, meeting_ref, report_to_id,
+      department_id, position_id, customer_id, meeting_ref, report_to_id,
+      owner_id, coordinator_ids, save_as_draft,
     } = body;
 
     if (!type || !title || !deadline || !priority) {
@@ -121,16 +131,21 @@ export async function POST(req: NextRequest) {
     if (!validTypes.includes(type)) {
       return NextResponse.json({ error: "type không hợp lệ" }, { status: 400 });
     }
+    if (!save_as_draft && !owner_id) {
+      return NextResponse.json(
+        { error: "Cần chọn Người chịu trách nhiệm chính để tạo và giao việc (hoặc chọn Lưu nháp nếu chưa có người)" },
+        { status: 400 }
+      );
+    }
 
     const id = uuid();
-    // owner_name_manual chỉ là ghi chú tự do, KHÔNG gắn tài khoản nên không tự chuyển trạng thái "assigned"
-    const status = "new";
+    const status = save_as_draft ? "draft" : "pending_acceptance";
 
     await run(
       `INSERT INTO work_items
-       (id, type, title, description, priority, status, creator_id, owner_name_manual, report_to_id,
+       (id, type, title, description, priority, status, creator_id, owner_id, assigned_by_id, assigned_at, report_to_id,
         department_id, position_id, customer_id, meeting_ref, deadline)
-       VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_name_manual, :report_to_id,
+       VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_id, :assigned_by_id, :assigned_at, :report_to_id,
         :department_id, :position_id, :customer_id, :meeting_ref, :deadline)`,
       {
         id,
@@ -140,7 +155,9 @@ export async function POST(req: NextRequest) {
         priority,
         status,
         creator_id: user.id,
-        owner_name_manual: owner_name_manual ?? null,
+        owner_id: owner_id ?? null,
+        assigned_by_id: owner_id ? user.id : null,
+        assigned_at: owner_id ? new Date().toISOString() : null,
         report_to_id: report_to_id ?? null,
         department_id: department_id ?? null,
         position_id: position_id ?? null,
@@ -150,25 +167,44 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    if (Array.isArray(coordinator_ids)) {
+      for (const uid of coordinator_ids) {
+        if (uid && uid !== owner_id) {
+          await run(
+            `INSERT INTO work_item_coordinators (work_item_id, user_id) VALUES (:wi, :uid) ON CONFLICT DO NOTHING`,
+            { wi: id, uid }
+          );
+        }
+      }
+    }
+
     await run(
       `INSERT INTO work_item_history (id, work_item_id, from_status, to_status, changed_by, note)
        VALUES (:id, :work_item_id, NULL, :to_status, :changed_by, 'Tạo mới')`,
       { id: uuid(), work_item_id: id, to_status: status, changed_by: user.id }
     );
 
-    // Người chịu trách nhiệm giờ chỉ là ghi chú tự do (owner_name_manual), không gắn tài khoản
-    // => luôn thông báo cho Quản lý/BGĐ cùng phòng ban để họ gán chính thức qua nút "Gán việc"
-    const leaders = await all<any>(
-      `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-       WHERE r.name IN ('Quản lý','BGĐ')
-       AND (u.department_id = :dept OR :dept2::text IS NULL)`,
-      { dept: department_id ?? null, dept2: department_id ?? null }
-    );
-    for (const l of leaders) await notify(l.id, "created", `Việc mới cần gán người xử lý: "${title}"`, id);
+    if (owner_id) {
+      await notify(owner_id, "assigned", `Bạn được giao việc: "${title}"`, id);
+    } else {
+      // Lưu nháp, chưa có người chịu trách nhiệm => báo Quản lý/BGĐ cùng phòng ban vào giao sau
+      const leaders = await all<any>(
+        `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
+         WHERE r.name IN ('Quản lý','BGĐ')
+         AND (u.department_id = :dept OR :dept2::text IS NULL)`,
+        { dept: department_id ?? null, dept2: department_id ?? null }
+      );
+      for (const l of leaders) await notify(l.id, "created", `Có bản nháp mới cần giao người xử lý: "${title}"`, id);
+    }
+
+    if (Array.isArray(coordinator_ids)) {
+      for (const uid of coordinator_ids) {
+        if (uid && uid !== owner_id) await notify(uid, "assigned", `Bạn được thêm làm người phối hợp cho việc: "${title}"`, id);
+      }
+    }
 
     if (report_to_id) {
-      // report_to_id giờ là position_id (chức danh) - tự tìm user đang giữ chức danh đó để thông báo.
-      // Riêng "Khách hàng" không phải chức danh nhân viên nên không có ai để thông báo (chỉ mang tính ghi chú).
+      // report_to_id là position_id (chức danh, giữ nguyên quyết định đợt 4) - tự tìm user đang giữ chức danh đó
       const reportToPosition = await get<any>(`SELECT name FROM positions WHERE id = :id`, { id: report_to_id });
       if (reportToPosition && reportToPosition.name !== "Khách hàng") {
         const holders = await all<any>(

@@ -44,13 +44,18 @@ CREATE TABLE IF NOT EXISTS work_items (
   title TEXT NOT NULL,
   description TEXT,
   priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('urgent','high','normal','low')),
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','assigned','doing','waiting','completed','closed','cancelled')),
+  -- 9 trạng thái theo Thay_đổi.docx mục 6 (21/07/2026):
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+    'draft', 'pending_acceptance', 'in_progress', 'pending_change_approval',
+    'pending_completion_approval', 'rework_requested', 'acceptance_rejected',
+    'completed', 'cancelled'
+  )),
   is_overdue BOOLEAN NOT NULL DEFAULT FALSE,
   creator_id TEXT NOT NULL REFERENCES users(id),
-  owner_id TEXT REFERENCES users(id),
-  owner_name_manual TEXT,
-  assigned_by_id TEXT REFERENCES users(id),
-  report_to_id TEXT REFERENCES positions(id),
+  owner_id TEXT REFERENCES users(id), -- Người chịu trách nhiệm chính - bắt buộc chọn tài khoản ngay khi tạo việc
+  owner_name_manual TEXT, -- chỉ còn dữ liệu lịch sử của các việc tạo trước mục 4 (đợt 5), không dùng cho việc mới
+  assigned_by_id TEXT REFERENCES users(id), -- Người giao việc
+  report_to_id TEXT REFERENCES positions(id), -- Báo cáo cho (theo chức danh, giữ nguyên theo quyết định đợt 4)
   department_id TEXT REFERENCES departments(id),
   position_id TEXT REFERENCES positions(id),
   customer_id TEXT REFERENCES customers(id),
@@ -64,6 +69,15 @@ CREATE TABLE IF NOT EXISTS work_items (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Người phối hợp (mới, mục 3 + 4 Thay_đổi.docx) - nhiều-nhiều, khác owner_id (chỉ 1)
+CREATE TABLE IF NOT EXISTS work_item_coordinators (
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (work_item_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_work_item_coordinators_user ON work_item_coordinators(user_id);
 
 CREATE TABLE IF NOT EXISTS work_item_comments (
   id TEXT PRIMARY KEY,
@@ -142,12 +156,13 @@ CREATE TABLE IF NOT EXISTS announcement_reads (
 CREATE TABLE IF NOT EXISTS work_item_proposals (
   id TEXT PRIMARY KEY,
   work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('complete','cancel','edit')),
+  type TEXT NOT NULL CHECK (type IN ('complete','cancel','edit','reassign')),
   proposed_by TEXT NOT NULL REFERENCES users(id),
   note TEXT,
   proposed_title TEXT,
   proposed_description TEXT,
   proposed_deadline TIMESTAMPTZ,
+  proposed_owner_id TEXT REFERENCES users(id), -- dùng cho type = 'reassign'
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   reviewed_by TEXT REFERENCES users(id),
   reviewed_at TIMESTAMPTZ,
@@ -157,6 +172,19 @@ CREATE TABLE IF NOT EXISTS work_item_proposals (
 
 CREATE INDEX IF NOT EXISTS idx_proposals_work_item ON work_item_proposals(work_item_id);
 CREATE INDEX IF NOT EXISTS idx_proposals_status ON work_item_proposals(status);
+
+-- Audit log cho hành động quản trị (vd: Admin reset mật khẩu người dùng khác) - mục 12 Thay_đổi.docx
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id TEXT PRIMARY KEY,
+  action TEXT NOT NULL,
+  actor_id TEXT NOT NULL REFERENCES users(id),
+  target_user_id TEXT NOT NULL REFERENCES users(id),
+  detail TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_target ON admin_audit_log(target_user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_actor ON admin_audit_log(actor_id);
 
 CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
 CREATE INDEX IF NOT EXISTS idx_work_items_owner ON work_items(owner_id);

@@ -94,7 +94,7 @@ export default function DashboardPage() {
         </div>
         <div className="card text-center">
           <div className="text-2xl font-bold text-purple-600">{data.needSupport.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Cần hỗ trợ</div>
+          <div className="text-xs text-gray-500 mt-1">Cần xử lý lại</div>
         </div>
         <div className="card text-center">
           <div className="text-2xl font-bold text-green-600">{data.completedToday}</div>
@@ -108,8 +108,8 @@ export default function DashboardPage() {
           {data.overdue.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
         </Widget>
 
-        <Widget title="Cần hỗ trợ (Waiting)" count={data.needSupport.length} accent="text-purple-600">
-          {data.needSupport.length === 0 && <p className="text-sm text-gray-400">Không có việc đang chờ</p>}
+        <Widget title="Yêu cầu xử lý lại" count={data.needSupport.length} accent="text-purple-600">
+          {data.needSupport.length === 0 && <p className="text-sm text-gray-400">Không có việc cần xử lý lại</p>}
           {data.needSupport.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
         </Widget>
 
