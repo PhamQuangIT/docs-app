@@ -9,12 +9,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Thiếu email hoặc mật khẩu" }, { status: 400 });
   }
 
-  const user = await get<any>(
-    `SELECT u.*, r.name as role_name FROM users u
-     JOIN roles r ON r.id = u.role_id
-     WHERE u.email = :email AND u.is_active = true`,
-    { email }
-  );
+  let user: any;
+  try {
+    user = await get<any>(
+      `SELECT u.*, r.name as role_name FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE u.email = :email AND u.is_active = true`,
+      { email }
+    );
+  } catch (e: any) {
+    // Lỗi kết nối/timeout DB - KHÔNG được nhầm thành "sai mật khẩu", để tránh gây hiểu lầm (đã gặp thực tế)
+    console.error("Login DB error:", e.message);
+    return NextResponse.json(
+      { error: "Không kết nối được hệ thống, vui lòng thử lại sau ít giây" },
+      { status: 503 }
+    );
+  }
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return NextResponse.json({ error: "Sai email hoặc mật khẩu" }, { status: 401 });

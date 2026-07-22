@@ -15,7 +15,10 @@ export const pool: Pool =
   new Pool({
     connectionString,
     ssl: connectionString.includes("localhost") ? false : { rejectUnauthorized: false },
-    max: 10,
+    max: 3, // giảm từ 10 -> 3: môi trường serverless (Netlify) có thể chạy nhiều container cùng lúc,
+            // mỗi container 1 pool riêng - để 10 dễ vượt giới hạn kết nối đồng thời DB cho phép
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 8000, // timeout kết nối rõ ràng thay vì treo vô thời hạn
   });
 
 if (process.env.NODE_ENV !== "production") {

@@ -13,6 +13,14 @@
 → Xem file **`DEPLOY.md`** — hướng dẫn deploy lên **Vercel + Supabase** hoặc **Netlify + Supabase**
 (miễn phí, ~20-30 phút, đã có sẵn cấu hình cho cả 2 nền tảng: `vercel.json` và `netlify.toml`).
 
+## Ghi chú vận hành - đăng nhập chập chờn (21/07/2026)
+
+Gặp hiện tượng thỉnh thoảng đăng nhập báo "Sai email hoặc mật khẩu" dù tài khoản/mật khẩu đúng, tự hết sau vài lần thử.
+Nhiều khả năng do kết nối tới DB (Postgres serverless) bị chập chờn, không phải do dữ liệu/mật khẩu.
+Đã hạ `max` pool kết nối (10 → 3) + thêm timeout kết nối rõ ràng + tách lỗi kết nối DB ra khỏi lỗi sai mật khẩu
+(giờ sẽ hiện "Không kết nối được hệ thống, vui lòng thử lại" thay vì gây hiểu lầm). Nếu còn lặp lại, kiểm tra thêm:
+chuỗi kết nối `DATABASE_URL` có đang trỏ đúng "pooled connection" của Neon/Supabase (không phải kết nối trực tiếp) không.
+
 ## Cập nhật mới nhất (đợt 5 - theo file Thay_đổi.docx 21/07/2026)
 
 **Đã xác nhận với người yêu cầu 3 điểm lớn trước khi làm:**
