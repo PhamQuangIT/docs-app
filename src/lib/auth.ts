@@ -71,14 +71,30 @@ export async function requireUser(): Promise<SessionUser> {
 //                       (giữ thêm ngoài 4 nhóm gốc vì phục vụ mục đích khác - xem đại diện KH)
 // ============================================================
 
+// ============================================================
+// Hệ vai trò (theo Thay_đổi.docx mục 4 + 8, cập nhật RBAC 22/07/2026):
+//   BGĐ               - tương đương Quản lý (gán/đóng việc, xem báo cáo), KHÔNG còn quyền Quản trị hệ thống
+//   Quản lý           - gán/đóng việc, xem báo cáo nhóm
+//   Sản xuất trực tiếp - nhân viên thường, thuộc khối sản xuất
+//   Gián tiếp         - nhân viên thường, thuộc khối gián tiếp
+//   Khách hàng        - tài khoản khách hàng bên ngoài, chỉ xem/tạo yêu cầu của chính mình
+//
+// Quyền "Quản trị hệ thống" (thêm/sửa/xóa user, cấp lại mật khẩu, phân quyền) tách RIÊNG khỏi mọi vai trò,
+// chỉ gắn với ĐÚNG 1 tài khoản Super Admin (theo email) - không phụ thuộc role, kể cả BGĐ.
+// ============================================================
+
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "admin@3pl.local";
+
 export function canAssign(roleName: string) {
   return ["BGĐ", "Quản lý"].includes(roleName);
 }
 export function canCloseConfirm(roleName: string) {
   return ["BGĐ", "Quản lý"].includes(roleName);
 }
-export function canManageUsers(roleName: string) {
-  return roleName === "BGĐ";
+// Lưu ý: nhận email (không phải roleName) - Quản trị hệ thống chỉ dành riêng cho 1 tài khoản Super Admin,
+// tách biệt hoàn toàn khỏi vai trò BGĐ (BGĐ giờ ngang quyền Quản lý, không quản lý được user nữa).
+export function canManageUsers(email: string) {
+  return email === SUPER_ADMIN_EMAIL;
 }
 export function canViewReports(roleName: string) {
   return ["BGĐ", "Quản lý"].includes(roleName);

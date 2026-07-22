@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    if (!canManageUsers(user.roleName)) {
+    if (!canManageUsers(user.email)) {
       return NextResponse.json({ error: "Chỉ BGĐ được tạo phòng ban" }, { status: 403 });
     }
     const { name, parent_id } = await req.json();

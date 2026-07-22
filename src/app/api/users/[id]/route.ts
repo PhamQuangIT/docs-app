@@ -12,7 +12,7 @@ const MIN_PASSWORD_LENGTH = 6; // đồng bộ quy tắc với /api/auth/change-
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
-    if (!canManageUsers(user.roleName)) {
+    if (!canManageUsers(user.email)) {
       return NextResponse.json({ error: "Chỉ BGĐ được sửa user" }, { status: 403 });
     }
     const body = await req.json();
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
-    if (!canManageUsers(user.roleName)) {
+    if (!canManageUsers(user.email)) {
       return NextResponse.json({ error: "Chỉ BGĐ được xoá user" }, { status: 403 });
     }
     if (params.id === user.id) {

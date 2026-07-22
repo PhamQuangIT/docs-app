@@ -12,31 +12,46 @@ export async function GET() {
       `SELECT COUNT(*) as cnt FROM work_items WHERE type = 'issue' AND created_at::date = CURRENT_DATE`
     );
     const overdue = await all(
-      `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
+      `SELECT wi.*, owner.full_name as owner_name, creator.full_name as creator_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
+       LEFT JOIN users creator ON creator.id = wi.creator_id
        WHERE wi.is_overdue = true AND wi.status NOT IN ('completed','cancelled')
-       ORDER BY wi.deadline ASC LIMIT 20`
+       ORDER BY wi.deadline ASC LIMIT 30`
     );
     const needSupport = await all(
-      `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
+      `SELECT wi.*, owner.full_name as owner_name, creator.full_name as creator_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
-       WHERE wi.status = 'rework_requested' ORDER BY wi.updated_at DESC LIMIT 20`
+       LEFT JOIN users creator ON creator.id = wi.creator_id
+       WHERE wi.status = 'rework_requested' ORDER BY wi.updated_at DESC LIMIT 30`
     );
     const completedToday = await get<any>(
       `SELECT COUNT(*) as cnt FROM work_items WHERE completed_at::date = CURRENT_DATE`
     );
     const myTask = await all(
-      `SELECT * FROM work_items
-       WHERE (owner_id = :owner_id OR (:my_position_id::text IS NOT NULL AND position_id = :my_position_id))
-       AND status NOT IN ('completed','cancelled')
-       ORDER BY deadline ASC LIMIT 20`,
+      `SELECT wi.*, owner.full_name as owner_name, creator.full_name as creator_name FROM work_items wi
+       LEFT JOIN users owner ON owner.id = wi.owner_id
+       LEFT JOIN users creator ON creator.id = wi.creator_id
+       WHERE (wi.owner_id = :owner_id OR (:my_position_id::text IS NOT NULL AND wi.position_id = :my_position_id)
+              OR EXISTS (SELECT 1 FROM work_item_coordinators wic WHERE wic.work_item_id = wi.id AND wic.user_id = :owner_id))
+       AND wi.status NOT IN ('completed','cancelled')
+       ORDER BY wi.deadline ASC LIMIT 30`,
       { owner_id: user.id, my_position_id: user.positionId ?? null }
     );
-    const deadlineToday = await all(
-      `SELECT wi.*, owner.full_name as owner_name FROM work_items wi
+    // "Việc đã giao": những việc mà CHÍNH TÔI là Người giao việc (mục 2C Master Prompt - tab "Việc đã giao")
+    const assignedByMe = await all(
+      `SELECT wi.*, owner.full_name as owner_name, creator.full_name as creator_name FROM work_items wi
        LEFT JOIN users owner ON owner.id = wi.owner_id
+       LEFT JOIN users creator ON creator.id = wi.creator_id
+       WHERE wi.assigned_by_id = :me AND wi.status NOT IN ('completed','cancelled')
+       ORDER BY wi.deadline ASC LIMIT 30`,
+      { me: user.id }
+    );
+    const deadlineToday = await all(
+      `SELECT wi.*, owner.full_name as owner_name, creator.full_name as creator_name FROM work_items wi
+       LEFT JOIN users owner ON owner.id = wi.owner_id
+       LEFT JOIN users creator ON creator.id = wi.creator_id
        WHERE wi.deadline::date = CURRENT_DATE AND wi.status NOT IN ('completed','cancelled')
-       ORDER BY wi.deadline ASC LIMIT 20`
+       ORDER BY wi.deadline ASC LIMIT 30`
     );
     const deptPerformance = await all(
       `SELECT d.name as department_name,
@@ -61,6 +76,7 @@ export async function GET() {
       overdue,
       needSupport,
       myTask,
+      assignedByMe,
       deadlineToday,
       deptPerformance,
       customerRequests,

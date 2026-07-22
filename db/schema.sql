@@ -66,8 +66,22 @@ CREATE TABLE IF NOT EXISTS work_items (
   closed_at TIMESTAMPTZ,
   waiting_reason TEXT,
   cancel_reason TEXT,
+  -- Thời hạn định kỳ (Master Prompt 22/07/2026): recurrence_next_run là mốc thời gian cron sẽ tự sinh
+  -- việc kế tiếp; recurrence_parent_id trỏ về việc gốc (template) để truy vết các lần sinh tự động.
+  recurrence TEXT NOT NULL DEFAULT 'once' CHECK (recurrence IN ('once', 'daily', 'weekly', 'monthly', 'yearly')),
+  recurrence_next_run TIMESTAMPTZ,
+  recurrence_parent_id TEXT REFERENCES work_items(id),
+  watcher_email TEXT, -- Email theo dõi (bên ngoài hệ thống, không bắt buộc phải là tài khoản có sẵn)
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_work_items_recurrence_next_run ON work_items(recurrence_next_run) WHERE recurrence != 'once';
+
+-- Email đã từng dùng ở "Email theo dõi" - phục vụ autocomplete, không gắn với user/việc cụ thể
+CREATE TABLE IF NOT EXISTS known_watcher_emails (
+  email TEXT PRIMARY KEY,
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  used_count INT NOT NULL DEFAULT 1
 );
 
 -- Người phối hợp (mới, mục 3 + 4 Thay_đổi.docx) - nhiều-nhiều, khác owner_id (chỉ 1)

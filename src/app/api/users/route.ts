@@ -27,7 +27,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    if (!canManageUsers(user.roleName)) {
+    if (!canManageUsers(user.email)) {
       return NextResponse.json({ error: "Chỉ BGĐ được tạo user" }, { status: 403 });
     }
     const body = await req.json();

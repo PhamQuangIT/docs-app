@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
       type, title, description, priority, deadline,
       department_id, position_id, customer_id, meeting_ref, report_to_id,
       owner_id, coordinator_ids, save_as_draft,
+      recurrence, watcher_email,
     } = body;
 
     if (!type || !title || !deadline || !priority) {
@@ -131,6 +132,10 @@ export async function POST(req: NextRequest) {
     if (!validTypes.includes(type)) {
       return NextResponse.json({ error: "type không hợp lệ" }, { status: 400 });
     }
+    const validRecurrence = ["once", "daily", "weekly", "monthly", "yearly"];
+    if (recurrence && !validRecurrence.includes(recurrence)) {
+      return NextResponse.json({ error: "Loại thời hạn (recurrence) không hợp lệ" }, { status: 400 });
+    }
     if (!save_as_draft && !owner_id) {
       return NextResponse.json(
         { error: "Cần chọn Người chịu trách nhiệm chính để tạo và giao việc (hoặc chọn Lưu nháp nếu chưa có người)" },
@@ -140,13 +145,16 @@ export async function POST(req: NextRequest) {
 
     const id = uuid();
     const status = save_as_draft ? "draft" : "pending_acceptance";
+    const finalRecurrence = recurrence || "once";
+    // recurrence_next_run = đúng deadline lần này -> cron sẽ tự sinh việc kế tiếp khi qua mốc deadline
+    const recurrenceNextRun = finalRecurrence !== "once" ? deadline : null;
 
     await run(
       `INSERT INTO work_items
        (id, type, title, description, priority, status, creator_id, owner_id, assigned_by_id, assigned_at, report_to_id,
-        department_id, position_id, customer_id, meeting_ref, deadline)
+        department_id, position_id, customer_id, meeting_ref, deadline, recurrence, recurrence_next_run, watcher_email)
        VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_id, :assigned_by_id, :assigned_at, :report_to_id,
-        :department_id, :position_id, :customer_id, :meeting_ref, :deadline)`,
+        :department_id, :position_id, :customer_id, :meeting_ref, :deadline, :recurrence, :recurrence_next_run, :watcher_email)`,
       {
         id,
         type,
@@ -164,8 +172,19 @@ export async function POST(req: NextRequest) {
         customer_id: customer_id ?? null,
         meeting_ref: meeting_ref ?? null,
         deadline,
+        recurrence: finalRecurrence,
+        recurrence_next_run: recurrenceNextRun,
+        watcher_email: watcher_email || null,
       }
     );
+
+    if (watcher_email) {
+      await run(
+        `INSERT INTO known_watcher_emails (email, last_used_at, used_count) VALUES (:email, NOW(), 1)
+         ON CONFLICT (email) DO UPDATE SET last_used_at = NOW(), used_count = known_watcher_emails.used_count + 1`,
+        { email: watcher_email }
+      );
+    }
 
     if (Array.isArray(coordinator_ids)) {
       for (const uid of coordinator_ids) {

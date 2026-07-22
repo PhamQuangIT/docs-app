@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import CreateWorkItemModal from "./CreateWorkItemModal";
 
@@ -7,6 +7,15 @@ export default function FloatingCreateButton() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    // Nút "+ Tạo việc" trên NavBar bắn sự kiện này để mở đúng modal dùng chung này (tránh 2 modal khác nhau)
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener("docs-app:open-create-modal", onOpen);
+    return () => window.removeEventListener("docs-app:open-create-modal", onOpen);
+  }, []);
 
   if (pathname === "/login") return null;
 

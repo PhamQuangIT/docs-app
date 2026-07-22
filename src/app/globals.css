@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 body {
-  background-color: #f5f6fa;
-  color: #1a1c23;
+  background-color: #f4f6f9;
+  color: #1e293b;
 }
 
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
 }
-.badge-urgent { @apply bg-red-100 text-red-700; }
-.badge-high { @apply bg-orange-100 text-orange-700; }
-.badge-normal { @apply bg-blue-100 text-blue-700; }
+/* Khẩn cấp = đỏ tươi (nổi bật nhất), Cao = đỏ nhạt, Bình thường = xanh nhạt, Thấp = xám - theo Master Prompt 22/07/2026 */
+.badge-urgent { background-color: #fee2e2; color: #ef4444; font-weight: 700; }
+.badge-high { @apply bg-red-50 text-red-500; }
+.badge-normal { @apply bg-blue-50 text-blue-600; }
 .badge-low { @apply bg-gray-100 text-gray-600; }
 
 .status-draft { @apply bg-slate-100 text-slate-700; }
@@ -31,7 +32,7 @@ body {
 .btn {
   @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors;
 }
-.btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600; }
+.btn-primary { background-color: #2563eb; @apply text-white hover:opacity-90; }
 .btn-secondary { @apply bg-white border border-gray-200 text-gray-700 hover:bg-gray-50; }
 .input {
   @apply w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500;

@@ -1,58 +1,68 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PriorityBadge, StatusBadge, TypeLabel } from "@/components/Badges";
-import SlaCountdown from "@/components/SlaCountdown";
+import { PriorityBadge, TypeLabel } from "@/components/Badges";
 
 function fmt(dt: string) {
   if (!dt) return "-";
   return new Date(dt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-function WorkItemRow({ item }: { item: any }) {
+function overdueDuration(deadline: string) {
+  const ms = Date.now() - new Date(deadline).getTime();
+  if (ms <= 0) return "";
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h${m.toString().padStart(2, "0")}p`;
+}
+
+function TaskRow({ item, variant }: { item: any; variant: "default" | "assigned" }) {
   return (
     <Link
       href={`/work-items/${item.id}`}
-      className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0 hover:bg-gray-50 -mx-2 px-2 rounded"
+      className="flex items-center justify-between gap-3 py-2.5 px-3 border-b border-gray-50 last:border-0 hover:bg-slate-50 rounded-lg"
     >
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-800 truncate">{item.title}</div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <TypeLabel type={item.type} />
-          <span className="text-xs text-gray-400">·</span>
-          <span className="text-xs text-gray-400">
-            {item.owner_name || (item.owner_name_manual ? `${item.owner_name_manual} (ghi chú)` : "Chưa gán")}
-          </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <PriorityBadge priority={item.priority} />
+          <span className="text-sm font-semibold text-slate-800 truncate">{item.title}</span>
+        </div>
+        <div className="text-xs text-slate-400 mt-0.5 truncate">
+          {variant === "assigned" ? (
+            <>Giao cho: {item.owner_name ?? "Chưa gán"} · Hạn: {fmt(item.deadline)}</>
+          ) : (
+            <>
+              <TypeLabel type={item.type} /> · {item.creator_name ?? "-"}
+            </>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0 ml-3">
-        <PriorityBadge priority={item.priority} />
-        <div className="text-right">
-          <div className="text-xs text-gray-400">{fmt(item.deadline)}</div>
-          <SlaCountdown deadline={item.deadline} status={item.status} />
-        </div>
+      <div className="shrink-0">
+        {item.is_overdue ? (
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: "#fee2e2", color: "#ef4444" }}>
+            ⚠️ Trễ {overdueDuration(item.deadline)}
+          </span>
+        ) : (
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: "#fef9c3", color: "#a16207" }}>
+            ⏳ Đang làm
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-function Widget({ title, count, children, accent }: { title: string; count?: number; children: React.ReactNode; accent?: string }) {
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
-        {count !== undefined && (
-          <span className={`text-lg font-bold ${accent ?? "text-brand-600"}`}>{count}</span>
-        )}
-      </div>
-      <div className="max-h-72 overflow-y-auto">{children}</div>
-    </div>
-  );
-}
+const TABS = [
+  { key: "overdue", label: "Quá hạn", dot: "#ef4444" },
+  { key: "deadlineToday", label: "Deadline hôm nay", dot: "#eab308" },
+  { key: "myTask", label: "Việc của tôi", dot: "#2563eb" },
+  { key: "assignedByMe", label: "Việc đã giao", dot: "#7c3aed" },
+] as const;
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("overdue");
 
   async function load() {
     const res = await fetch("/api/dashboard");
@@ -69,90 +79,126 @@ export default function DashboardPage() {
 
   if (!data) return <div className="text-gray-400 text-sm">Đang tải dashboard...</div>;
 
+  const activeList: any[] = data[tab] ?? [];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">Dashboard vận hành hôm nay</h1>
+          <h1 className="text-xl font-bold text-slate-800">Dashboard vận hành</h1>
           {lastUpdated && (
-            <p className="text-xs text-gray-400">
-              Tự động cập nhật mỗi phút · Lần cuối: {lastUpdated.toLocaleTimeString("vi-VN")}
+            <p className="text-xs text-slate-400 mt-0.5">
+              Cập nhật: {lastUpdated.toLocaleTimeString("vi-VN")}{" "}
+              <button onClick={load} className="text-blue-600 hover:underline ml-1">🔄 Làm mới</button>
             </p>
           )}
         </div>
-        <Link href="/work-items?create=1" className="btn btn-primary text-sm">+ Tạo việc</Link>
       </div>
 
+      {/* KPI cards - grid 4 cột */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="card text-center">
-          <div className="text-2xl font-bold text-brand-600">{data.todayIssues}</div>
-          <div className="text-xs text-gray-500 mt-1">Sự cố hôm nay</div>
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="text-xs text-slate-500">Sự cố hôm nay</div>
+          <div className="text-2xl font-bold mt-1" style={{ color: "#eab308" }}>{data.todayIssues}</div>
         </div>
-        <div className="card text-center">
-          <div className="text-2xl font-bold text-red-600">{data.overdue.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Đang quá hạn</div>
+        <div className="bg-white rounded-xl border-2 p-4" style={{ borderColor: "#ef4444" }}>
+          <div className="text-xs font-medium" style={{ color: "#ef4444" }}>Đang quá hạn</div>
+          <div className="text-2xl font-bold mt-1" style={{ color: "#ef4444" }}>{data.overdue.length}</div>
         </div>
-        <div className="card text-center">
-          <div className="text-2xl font-bold text-purple-600">{data.needSupport.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Cần xử lý lại</div>
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="text-xs text-slate-500">Cần xử lý lại</div>
+          <div className="text-2xl font-bold mt-1 text-slate-700">{data.needSupport.length}</div>
         </div>
-        <div className="card text-center">
-          <div className="text-2xl font-bold text-green-600">{data.completedToday}</div>
-          <div className="text-xs text-gray-500 mt-1">Hoàn thành hôm nay</div>
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="text-xs text-slate-500">Hoàn thành hôm nay</div>
+          <div className="text-2xl font-bold mt-1" style={{ color: "#22c55e" }}>{data.completedToday}</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Widget title="Quá hạn (Overdue)" count={data.overdue.length} accent="text-red-600">
-          {data.overdue.length === 0 && <p className="text-sm text-gray-400">Không có việc quá hạn 🎉</p>}
-          {data.overdue.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
-        </Widget>
+      {/* Layout 2 cột: 65% - 35% */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: "65% 35%" }}>
+        {/* Cột trái: danh sách gộp tab */}
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-2 mb-1">
+            {TABS.map((t) => {
+              const count = (data[t.key] ?? []).length;
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md transition-colors ${
+                    active ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.dot }} />
+                  {t.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="max-h-[420px] overflow-y-auto">
+            {activeList.length === 0 && (
+              <p className="text-sm text-slate-400 py-6 text-center">Không có công việc nào ở mục này 🎉</p>
+            )}
+            {activeList.map((i) => (
+              <TaskRow key={i.id} item={i} variant={tab === "assignedByMe" ? "assigned" : "default"} />
+            ))}
+          </div>
+          {activeList.length > 0 && (
+            <div className="text-center pt-2">
+              <Link href="/work-items" className="text-sm text-blue-600 hover:underline">
+                Xem tất cả {activeList.length} công việc →
+              </Link>
+            </div>
+          )}
+        </div>
 
-        <Widget title="Yêu cầu xử lý lại" count={data.needSupport.length} accent="text-purple-600">
-          {data.needSupport.length === 0 && <p className="text-sm text-gray-400">Không có việc cần xử lý lại</p>}
-          {data.needSupport.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
-        </Widget>
+        {/* Cột phải: widget phụ */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">
+              Yêu cầu KH đang mở ({data.customerRequests.length})
+            </h3>
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {data.customerRequests.length === 0 && <p className="text-xs text-slate-400">Không có yêu cầu nào đang mở</p>}
+              {data.customerRequests.map((i: any) => (
+                <Link key={i.id} href={`/work-items/${i.id}`} className="block bg-slate-50 hover:bg-slate-100 rounded-lg px-3 py-2">
+                  <div className="text-sm font-medium text-slate-800 truncate">{i.title}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {i.is_overdue ? <span style={{ color: "#ef4444" }}>Quá {overdueDuration(i.deadline)}</span> : fmt(i.deadline)}
+                    {" · "}{i.owner_name ? `Đã gán: ${i.owner_name}` : "Chưa gán"}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
 
-        <Widget title="Deadline hôm nay" count={data.deadlineToday.length}>
-          {data.deadlineToday.length === 0 && <p className="text-sm text-gray-400">Không có deadline hôm nay</p>}
-          {data.deadlineToday.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
-        </Widget>
-
-        <Widget title="Yêu cầu khách hàng đang mở" count={data.customerRequests.length}>
-          {data.customerRequests.length === 0 && <p className="text-sm text-gray-400">Không có yêu cầu nào đang mở</p>}
-          {data.customerRequests.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
-        </Widget>
-
-        <Widget title="Việc của tôi" count={data.myTask.length}>
-          {data.myTask.length === 0 && <p className="text-sm text-gray-400">Bạn không có việc nào đang mở</p>}
-          {data.myTask.map((i: any) => <WorkItemRow key={i.id} item={i} />)}
-        </Widget>
-
-        <div className="card">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Hiệu suất theo phòng ban</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-400 text-xs">
-                <th className="pb-2">Phòng ban</th>
-                <th className="pb-2 text-right">Tổng</th>
-                <th className="pb-2 text-right">Đã đóng</th>
-                <th className="pb-2 text-right">% Đúng hạn</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.deptPerformance.map((d: any, idx: number) => {
-                const pct = d.closed_count > 0 ? Math.round((d.on_time / d.closed_count) * 100) : 0;
-                return (
-                  <tr key={idx} className="border-t border-gray-50">
-                    <td className="py-1.5">{d.department_name ?? "Chưa phân loại"}</td>
-                    <td className="py-1.5 text-right">{d.total}</td>
-                    <td className="py-1.5 text-right">{d.closed_count}</td>
-                    <td className="py-1.5 text-right font-medium">{pct}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">Hiệu suất phòng ban</h3>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-400 text-xs">
+                  <th className="pb-2 font-medium">PHÒNG BAN</th>
+                  <th className="pb-2 font-medium text-right">TỔNG</th>
+                  <th className="pb-2 font-medium text-right">% ĐÚNG HẠN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.deptPerformance.map((d: any, idx: number) => {
+                  const pct = d.closed_count > 0 ? Math.round((d.on_time / d.closed_count) * 100) : 0;
+                  const pctColor = pct === 0 ? "#ef4444" : pct >= 100 ? "#22c55e" : "#eab308";
+                  return (
+                    <tr key={idx} className="border-t border-gray-50">
+                      <td className="py-1.5 text-slate-700">{d.department_name ?? "Chưa phân loại"}</td>
+                      <td className="py-1.5 text-right text-slate-700">{d.total}</td>
+                      <td className="py-1.5 text-right font-semibold" style={{ color: pctColor }}>{pct}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

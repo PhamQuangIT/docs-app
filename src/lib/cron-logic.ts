@@ -97,3 +97,86 @@ export async function runOverdueCheck() {
 
   return results;
 }
+
+// Khoảng cách giữa các lần sinh việc định kỳ, theo cú pháp INTERVAL của Postgres
+const RECURRENCE_INTERVAL: Record<string, string> = {
+  daily: "1 day",
+  weekly: "7 days",
+  monthly: "1 month",
+  yearly: "1 year",
+};
+
+// Sinh việc mới cho các "việc gốc" (template) đã đặt Loại thời hạn (recurrence != 'once')
+// khi đến mốc recurrence_next_run. Sau khi sinh, tự dời recurrence_next_run của việc gốc sang chu kỳ kế tiếp.
+export async function runRecurringGeneration() {
+  const results = { generated: 0 };
+
+  const due = await all<any>(
+    `SELECT * FROM work_items
+     WHERE recurrence != 'once' AND recurrence_next_run IS NOT NULL AND recurrence_next_run <= NOW()`
+  );
+
+  for (const tpl of due) {
+    const interval = RECURRENCE_INTERVAL[tpl.recurrence];
+    if (!interval) continue;
+
+    const newId = uuid();
+    const status = tpl.owner_id ? "pending_acceptance" : "draft";
+    await run(
+      `INSERT INTO work_items
+       (id, type, title, description, priority, status, creator_id, owner_id, assigned_by_id, assigned_at,
+        report_to_id, department_id, position_id, customer_id, meeting_ref, deadline,
+        recurrence, recurrence_parent_id, watcher_email)
+       VALUES (:id, :type, :title, :description, :priority, :status, :creator_id, :owner_id, :assigned_by_id, :assigned_at,
+        :report_to_id, :department_id, :position_id, :customer_id, :meeting_ref, :deadline,
+        'once', :recurrence_parent_id, :watcher_email)`,
+      {
+        id: newId,
+        type: tpl.type,
+        title: tpl.title,
+        description: tpl.description,
+        priority: tpl.priority,
+        status,
+        creator_id: tpl.creator_id,
+        owner_id: tpl.owner_id,
+        assigned_by_id: tpl.owner_id ? tpl.creator_id : null,
+        assigned_at: tpl.owner_id ? new Date().toISOString() : null,
+        report_to_id: tpl.report_to_id,
+        department_id: tpl.department_id,
+        position_id: tpl.position_id,
+        customer_id: tpl.customer_id,
+        meeting_ref: tpl.meeting_ref,
+        // Deadline của lần sinh mới = đúng khoảng cách kể từ deadline lần trước (giữ nhịp cố định, vd 18:00 mỗi ngày)
+        deadline: new Date(new Date(tpl.deadline).getTime()).toISOString(),
+        recurrence_parent_id: tpl.recurrence_parent_id ?? tpl.id,
+        watcher_email: tpl.watcher_email,
+      }
+    );
+    // deadline mới thực chất cần cộng thêm interval - thực hiện bằng SQL cho chính xác theo lịch (tháng/năm)
+    await run(`UPDATE work_items SET deadline = :old_deadline::timestamptz + INTERVAL '${interval}' WHERE id = :id`, {
+      old_deadline: tpl.deadline,
+      id: newId,
+    });
+    await run(
+      `INSERT INTO work_item_history (id, work_item_id, from_status, to_status, changed_by, note)
+       VALUES (:id, :wi, NULL, :status, :changed_by, :note)`,
+      {
+        id: uuid(),
+        wi: newId,
+        status,
+        changed_by: tpl.creator_id,
+        note: `Tự động sinh từ việc định kỳ (${tpl.recurrence}) - việc gốc #${tpl.recurrence_parent_id ?? tpl.id}`,
+      }
+    );
+    if (tpl.owner_id) await notify(tpl.owner_id, "assigned", `Việc định kỳ mới: "${tpl.title}"`, newId);
+
+    // Dời mốc sinh việc kế tiếp của việc gốc
+    await run(
+      `UPDATE work_items SET recurrence_next_run = recurrence_next_run + INTERVAL '${interval}' WHERE id = :id`,
+      { id: tpl.id }
+    );
+    results.generated++;
+  }
+
+  return results;
+}

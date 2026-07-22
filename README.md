@@ -21,6 +21,37 @@ Nhiều khả năng do kết nối tới DB (Postgres serverless) bị chập ch
 (giờ sẽ hiện "Không kết nối được hệ thống, vui lòng thử lại" thay vì gây hiểu lầm). Nếu còn lặp lại, kiểm tra thêm:
 chuỗi kết nối `DATABASE_URL` có đang trỏ đúng "pooled connection" của Neon/Supabase (không phải kết nối trực tiếp) không.
 
+## Cập nhật mới nhất (đợt 6 - Master Prompt Redesign Dashboard 22/07/2026)
+
+- **Redesign Dashboard**: layout 2 cột (65%-35%), 4 thẻ KPI, gộp Quá hạn/Deadline hôm nay/Việc của tôi/Việc đã giao
+  thành 1 card dạng Tab (thêm mới "Việc đã giao" = các việc mà chính mình là Người giao việc), widget Yêu cầu KH
+  đang mở + Hiệu suất phòng ban (màu đỏ/xanh theo % đúng hạn). Design tokens mới: primary `#2563eb`, nền `#f4f6f9`.
+- **NavBar mới**: gọn lại còn Dashboard/Công việc/Báo cáo/Bảng tin, thêm ô tìm kiếm, nút "+ Tạo việc", chuông thông
+  báo, và Avatar có dropdown (Việc của tôi, Đổi mật khẩu, Quản trị hệ thống, Đăng xuất) thay vì bày hết ra ngoài.
+- **Sửa lỗi cuộn Modal "Tạo phát sinh mới"**: tái cấu trúc theo header/body/footer (`flex-col`, body `flex-1
+  overflow-y-auto min-h-0`, header/footer `shrink-0`), overlay dùng `items-start` + `my-auto` thay vì `items-center`
+  đơn thuần - khắc phục lỗi kéo lên không tới đỉnh, che mất Header khi form dài hơn màn hình.
+- **Thời hạn định kỳ (Recurring Tasks)**: thêm trường "Loại thời hạn" (Một lần/Ngày/Tuần/Tháng/Năm) khi tạo việc.
+  Cron (`scripts/check-overdue.ts` + `netlify/functions/check-overdue.ts`, chạy mỗi 5 phút) tự sinh việc kế tiếp
+  khi tới hạn, dời mốc sinh việc của "việc gốc" sang chu kỳ sau. Xem `runRecurringGeneration()` trong `cron-logic.ts`.
+- **Email theo dõi + gợi ý autocomplete**: thêm trường "Email theo dõi" (báo cho người ngoài hệ thống) trong mục
+  "+ Thêm..." của form tạo việc, có gợi ý các email đã dùng trước đó (bảng `known_watcher_emails`, API
+  `/api/watcher-emails`).
+- **RBAC - Super Admin theo email duy nhất**: `canManageUsers()` đổi từ kiểm tra role "BGĐ" sang kiểm tra ĐÚNG
+  1 email Super Admin (`admin@3pl.local`, có thể đổi qua biến môi trường `SUPER_ADMIN_EMAIL`). **BGĐ từ nay KHÔNG
+  còn quyền Quản trị hệ thống** (thêm/sửa/xóa user, reset mật khẩu) - quyền của BGĐ trên các phần khác (giao việc,
+  duyệt đề xuất, xem báo cáo) không đổi, tương đương Quản lý.
+- Chạy `db/migration_009_recurring_watcher.sql` trên DB thật (thêm cột recurrence*/watcher_email + bảng
+  known_watcher_emails, không mất dữ liệu).
+
+**Giả định cần anh xác nhận:**
+- "Email theo dõi" hiện là 1 trường TỰ DO (không bắt buộc là tài khoản có sẵn), chỉ dùng để lưu vết + gợi ý, KHÔNG
+  tự động gửi email thật (hệ thống hiện chưa có dịch vụ gửi email) - nếu cần gửi email thật, cần tích hợp thêm
+  dịch vụ SMTP/email provider.
+- Việc định kỳ: deadline lần sinh sau = deadline lần trước + đúng 1 chu kỳ (giữ nguyên giờ trong ngày, vd luôn
+  18:00 mỗi ngày/tuần/tháng/năm). Việc được sinh ra ở trạng thái giống việc gốc lúc tạo (draft nếu chưa có owner,
+  pending_acceptance nếu có).
+
 ## Cập nhật mới nhất (đợt 5 - theo file Thay_đổi.docx 21/07/2026)
 
 **Đã xác nhận với người yêu cầu 3 điểm lớn trước khi làm:**
