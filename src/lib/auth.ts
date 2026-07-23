@@ -85,6 +85,10 @@ export async function requireUser(): Promise<SessionUser> {
 
 const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "admin@3pl.local";
 
+export function isSuperAdmin(email: string) {
+  return email === SUPER_ADMIN_EMAIL;
+}
+
 export function canAssign(roleName: string) {
   return ["BGĐ", "Quản lý"].includes(roleName);
 }
@@ -94,7 +98,7 @@ export function canCloseConfirm(roleName: string) {
 // Lưu ý: nhận email (không phải roleName) - Quản trị hệ thống chỉ dành riêng cho 1 tài khoản Super Admin,
 // tách biệt hoàn toàn khỏi vai trò BGĐ (BGĐ giờ ngang quyền Quản lý, không quản lý được user nữa).
 export function canManageUsers(email: string) {
-  return email === SUPER_ADMIN_EMAIL;
+  return isSuperAdmin(email);
 }
 export function canViewReports(roleName: string) {
   return ["BGĐ", "Quản lý"].includes(roleName);

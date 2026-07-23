@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { all, get, run } from "@/lib/db";
-import { requireUser, canAssign } from "@/lib/auth";
-import { isAssigner, STATUSES } from "@/lib/workflow";
+import { requireUser, isSuperAdmin } from "@/lib/auth";
+import { canEditWorkItem, STATUSES } from "@/lib/workflow";
 import { v4 as uuid } from "uuid";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -75,10 +75,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-// PATCH: "Sửa việc" trực tiếp (mục 8 Thay_đổi.docx) - CHỈ Người giao việc (hoặc Quản lý/BGĐ), không qua đề xuất
-// vì họ đã là người có quyền quyết định. Nếu việc đã có người chịu trách nhiệm, bắt buộc nêu lý do.
+// PATCH: "Sửa việc" trực tiếp + nội dung đầy đủ như form Tạo việc (Prompt 22/07/2026) - CHỈ Người tạo /
+// Người giao việc của ĐÚNG việc này, hoặc Super Admin. Nếu việc đã có người chịu trách nhiệm, bắt buộc nêu lý do.
 // body: { title?, description?, priority?, deadline?, department_id?, position_id?, customer_id?,
-//         meeting_ref?, report_to_id?, coordinator_ids?, reason? }
+//         meeting_ref?, report_to_id?, coordinator_ids?, recurrence?, watcher_email?, reason? }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
@@ -93,8 +93,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if ([STATUSES.PENDING_CHANGE_APPROVAL, STATUSES.PENDING_COMPLETION_APPROVAL].includes(item.status)) {
       return NextResponse.json({ error: "Việc đang có đề xuất chờ duyệt, cần xử lý xong trước khi sửa" }, { status: 400 });
     }
-    if (!(isAssigner(item, user.id) || canAssign(user.roleName))) {
-      return NextResponse.json({ error: "Chỉ người giao việc mới được sửa việc này" }, { status: 403 });
+    if (!canEditWorkItem(item, user.id, user.email, isSuperAdmin)) {
+      return NextResponse.json({ error: "Chỉ người tạo/người giao việc của việc này (hoặc Super Admin) mới được sửa" }, { status: 403 });
     }
 
     const { reason, coordinator_ids } = body;
@@ -102,7 +102,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Việc đã có người chịu trách nhiệm, cần nêu lý do khi sửa" }, { status: 400 });
     }
 
-    const allowedFields = ["title", "description", "priority", "deadline", "department_id", "position_id", "customer_id", "meeting_ref", "report_to_id"];
+    const validRecurrence = ["once", "daily", "weekly", "monthly", "yearly"];
+    if ("recurrence" in body && !validRecurrence.includes(body.recurrence)) {
+      return NextResponse.json({ error: "Loại thời hạn (recurrence) không hợp lệ" }, { status: 400 });
+    }
+
+    const allowedFields = [
+      "title", "description", "priority", "deadline", "department_id", "position_id", "customer_id",
+      "meeting_ref", "report_to_id", "recurrence", "watcher_email",
+    ];
     const sets: string[] = [];
     const values: Record<string, any> = { id: params.id };
     const beforeAfter: string[] = [];
@@ -112,6 +120,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         values[f] = body[f];
         beforeAfter.push(`${f}: "${item[f] ?? ""}" -> "${body[f] ?? ""}"`);
       }
+    }
+
+    // Đổi Loại thời hạn hoặc Deadline khi đang có recurrence -> đặt lại mốc sinh việc kế tiếp (recurrence_next_run)
+    const newRecurrence = body.recurrence ?? item.recurrence;
+    const newDeadline = body.deadline ?? item.deadline;
+    if (newRecurrence !== "once" && (body.recurrence || body.deadline)) {
+      sets.push("recurrence_next_run = :recurrence_next_run");
+      values.recurrence_next_run = newDeadline;
+    } else if (newRecurrence === "once" && body.recurrence) {
+      sets.push("recurrence_next_run = NULL");
     }
 
     if (Array.isArray(coordinator_ids)) {
@@ -129,6 +147,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (sets.length === 0 && !Array.isArray(coordinator_ids)) {
       return NextResponse.json({ error: "Không có trường nào để cập nhật" }, { status: 400 });
+    }
+
+    if (body.watcher_email) {
+      await run(
+        `INSERT INTO known_watcher_emails (email, last_used_at, used_count) VALUES (:email, NOW(), 1)
+         ON CONFLICT (email) DO UPDATE SET last_used_at = NOW(), used_count = known_watcher_emails.used_count + 1`,
+        { email: body.watcher_email }
+      );
     }
 
     if (sets.length > 0) {

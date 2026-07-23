@@ -21,6 +21,21 @@ Nhiều khả năng do kết nối tới DB (Postgres serverless) bị chập ch
 (giờ sẽ hiện "Không kết nối được hệ thống, vui lòng thử lại" thay vì gây hiểu lầm). Nếu còn lặp lại, kiểm tra thêm:
 chuỗi kết nối `DATABASE_URL` có đang trỏ đúng "pooled connection" của Neon/Supabase (không phải kết nối trực tiếp) không.
 
+## Cập nhật mới nhất (đợt 7 - Nâng cấp "Điều chỉnh phân công" & siết quyền sửa việc 22/07/2026)
+
+- **Modal "Điều chỉnh phân công" giờ đầy đủ như form Tạo việc**: Tên việc, Mô tả, Ưu tiên, Deadline, Loại thời hạn,
+  Người chịu trách nhiệm chính, Người phối hợp, Báo cáo cho, Bộ phận, Vị trí, Khách hàng, Email theo dõi, và ô
+  **Lý do điều chỉnh** (bắt buộc nếu việc đã có người chịu trách nhiệm) - lưu đầy đủ vào lịch sử/audit log.
+  Component mới: `src/components/EditAssignmentModal.tsx`.
+- **Siết quyền TOÀN BỘ 4 thao tác trực tiếp** (không chỉ riêng "Điều chỉnh phân công"): "Điều chỉnh phân công",
+  "Yêu cầu xử lý lại", "Hủy việc", "Mở lại" - CHỈ **Người tạo / Người giao việc của ĐÚNG việc đó**, hoặc
+  **Super Admin** (`admin@3pl.local`) mới thấy nút và gọi được API tương ứng
+  (`PATCH /api/work-items/:id`, `/assign`, `/status`). Quản lý/BGĐ nói chung KHÔNG còn tự động có các quyền này
+  nếu không phải đúng người tạo/giao việc của việc đó. Helper dùng chung: `canEditWorkItem()` trong
+  `src/lib/workflow.ts`.
+- Quyền duyệt/từ chối đề xuất (`canReviewProposal`) và quyền của Người chịu trách nhiệm chính (tiếp nhận, đề
+  xuất, tiếp tục xử lý việc của chính mình) giữ nguyên, không bị ảnh hưởng bởi thay đổi này.
+
 ## Cập nhật mới nhất (đợt 6 - Master Prompt Redesign Dashboard 22/07/2026)
 
 - **Redesign Dashboard**: layout 2 cột (65%-35%), 4 thẻ KPI, gộp Quá hạn/Deadline hôm nay/Việc của tôi/Việc đã giao

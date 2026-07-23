@@ -94,6 +94,21 @@ export function canReviewProposal(
 // Yêu cầu xử lý lại, Duyệt hoàn thành) - cùng logic ưu tiên như canReviewProposal.
 export const canActAsAssigner = canReviewProposal;
 
+// Quyền CHỈNH SỬA nội dung việc + Điều chỉnh phân công (Prompt 22/07/2026):
+// CHỈ Người tạo / Người giao việc của ĐÚNG việc này, hoặc tài khoản Super Admin - KHÔNG còn áp dụng
+// chung cho mọi Quản lý/BGĐ như các quyền khác (canReviewProposal, canActAsAssigner cũ).
+export function canEditWorkItem(
+  item: { creator_id: string; assigned_by_id: string | null },
+  userId: string,
+  userEmail: string,
+  isSuperAdminFn: (email: string) => boolean
+): boolean {
+  if (isSuperAdminFn(userEmail)) return true;
+  if (item.creator_id === userId) return true;
+  if (item.assigned_by_id && item.assigned_by_id === userId) return true;
+  return false;
+}
+
 export function slaMinutesFor(priority: string) {
   const table: Record<string, { response: number; resolution: number }> = {
     urgent: { response: 15, resolution: 240 },

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get, run } from "@/lib/db";
-import { requireUser, canAssign } from "@/lib/auth";
+import { requireUser, isSuperAdmin } from "@/lib/auth";
 import { notify } from "@/lib/notify";
-import { isAssigner, STATUSES } from "@/lib/workflow";
+import { canEditWorkItem, STATUSES } from "@/lib/workflow";
 import { v4 as uuid } from "uuid";
 
 // PATCH /api/work-items/:id/assign  body: { owner_id, reason?, deadline? }
-// "Điều chỉnh phân công" (mục 5 Thay_đổi.docx) - thay cho nút "Gán việc" cũ.
+// "Điều chỉnh phân công" (Prompt 22/07/2026) - thay cho nút "Gán việc" cũ.
 // - Nếu việc đang ở "draft" (chưa giao cho ai): đây là bước giao việc lần đầu, không bắt buộc lý do.
 // - Nếu việc đang ở trạng thái khác (đã có người chịu trách nhiệm): đổi người bắt buộc phải có lý do (mục 1, 8).
-// Chỉ Người giao việc của chính việc này (assigned_by_id, hoặc người tạo nếu chưa từng giao chính thức)
-// hoặc vai trò toàn cục Quản lý/BGĐ mới được thực hiện.
+// CHỈ Người tạo / Người giao việc của ĐÚNG việc này, hoặc Super Admin mới được thực hiện (không còn áp dụng
+// chung cho mọi Quản lý/BGĐ - siết chặt theo yêu cầu phân quyền mới).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
@@ -27,8 +27,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Việc đã kết thúc, không thể điều chỉnh phân công" }, { status: 400 });
     }
 
-    if (!(isAssigner(item, user.id) || canAssign(user.roleName))) {
-      return NextResponse.json({ error: "Bạn không có quyền điều chỉnh phân công việc này" }, { status: 403 });
+    if (!canEditWorkItem(item, user.id, user.email, isSuperAdmin)) {
+      return NextResponse.json({ error: "Chỉ người tạo/người giao việc của việc này (hoặc Super Admin) mới được điều chỉnh phân công" }, { status: 403 });
     }
 
     const isFirstAssignment = item.status === STATUSES.DRAFT || !item.owner_id;

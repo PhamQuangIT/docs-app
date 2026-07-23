@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PriorityBadge, StatusBadge, TypeLabel } from "@/components/Badges";
 import SlaCountdown from "@/components/SlaCountdown";
+import EditAssignmentModal from "@/components/EditAssignmentModal";
+
+const SUPER_ADMIN_EMAIL = "admin@3pl.local"; // chỉ để ẩn/hiện nút ở UI - quyền thật do server kiểm tra lại
 
 function fmt(dt: string) {
   if (!dt) return "-";
@@ -30,8 +33,7 @@ export default function WorkItemDetailPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDeadline, setEditDeadline] = useState("");
-  const [showAssign, setShowAssign] = useState(false);
-  const [assignTo, setAssignTo] = useState("");
+  const [showEditAssignment, setShowEditAssignment] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -54,27 +56,12 @@ export default function WorkItemDetailPage() {
   const isManager = me && ["BGĐ", "Quản lý"].includes(me.roleName);
   const canActAsAssigner = isAssigner || isManager;
   const canReviewProposal = canActAsAssigner; // cùng logic quyết định đề xuất (mục 7)
+  // Quyền CHỈNH SỬA nội dung việc + Điều chỉnh phân công (Prompt 22/07/2026): CHỈ người tạo/người giao việc
+  // của ĐÚNG việc này, hoặc Super Admin - KHÔNG áp dụng chung cho mọi Quản lý/BGĐ như các quyền khác ở trên.
+  const canEditAssignment =
+    !!me && (me.email === SUPER_ADMIN_EMAIL || item.creator_id === me.id || item.assigned_by_id === me.id);
   const pendingProposals = (item.proposals || []).filter((p: any) => p.status === "pending");
   const isFinal = ["completed", "cancelled"].includes(item.status);
-
-  async function doAssign() {
-    if (!assignTo) return;
-    setBusy(true);
-    setError("");
-    const isFirstAssignment = item.status === "draft" || !item.owner_id;
-    let reason: string | null | undefined = undefined;
-    if (!isFirstAssignment) {
-      reason = prompt("Lý do đổi người chịu trách nhiệm chính (bắt buộc):");
-      if (!reason) { setBusy(false); return; }
-    }
-    const res = await fetch(`/api/work-items/${id}/assign`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner_id: assignTo, reason }),
-    });
-    setBusy(false);
-    if (res.ok) { setShowAssign(false); setAssignTo(""); load(); } else setError((await res.json()).error);
-  }
 
   async function doAccept() {
     setBusy(true); setError("");
@@ -263,34 +250,31 @@ export default function WorkItemDetailPage() {
           )}
 
           {/* Tiếp tục xử lý sau khi bị yêu cầu làm lại: người chịu trách nhiệm hoặc người giao việc */}
-          {item.status === "rework_requested" && (isOwner || canActAsAssigner) && (
+          {item.status === "rework_requested" && (isOwner || canEditAssignment) && (
             <button onClick={() => doStatusChange("in_progress")} className="btn btn-primary text-sm">
               ▶️ Tiếp tục xử lý
             </button>
           )}
 
-          {/* Người giao việc: các thao tác trực tiếp không cần qua đề xuất (mục 5, 8) */}
-          {canActAsAssigner && ["draft", "pending_acceptance", "acceptance_rejected"].includes(item.status) && (
-            <button onClick={() => setShowAssign((s) => !s)} className="btn btn-primary text-sm">
+          {/* Điều chỉnh phân công / Sửa việc: CHỈ người tạo/người giao việc của việc này/Super Admin (siết quyền) */}
+          {canEditAssignment && ["draft", "pending_acceptance", "acceptance_rejected", "in_progress"].includes(item.status) && (
+            <button onClick={() => setShowEditAssignment(true)} className="btn btn-primary text-sm">
               👤 {item.owner_id ? "Điều chỉnh phân công" : "Giao việc"}
             </button>
           )}
-          {canActAsAssigner && item.status === "in_progress" && (
-            <>
-              <button onClick={() => setShowAssign((s) => !s)} className="btn btn-secondary text-sm">
-                👤 Điều chỉnh phân công
-              </button>
-              <button onClick={() => doStatusChange("rework_requested", false, true)} className="btn btn-secondary text-sm">
-                ↩️ Yêu cầu xử lý lại
-              </button>
-            </>
+          {/* Các thao tác trực tiếp khác của Người giao việc - từ nay CŨNG siết về canEditAssignment
+              (chỉ người tạo/người giao việc của việc này/Super Admin), không còn cho mọi Quản lý/BGĐ */}
+          {canEditAssignment && item.status === "in_progress" && (
+            <button onClick={() => doStatusChange("rework_requested", false, true)} className="btn btn-secondary text-sm">
+              ↩️ Yêu cầu xử lý lại
+            </button>
           )}
-          {canActAsAssigner && ["draft", "pending_acceptance", "in_progress", "rework_requested", "acceptance_rejected"].includes(item.status) && (
+          {canEditAssignment && ["draft", "pending_acceptance", "in_progress", "rework_requested", "acceptance_rejected"].includes(item.status) && (
             <button onClick={() => doStatusChange("cancelled", false, true)} className="btn btn-secondary text-sm text-red-600">
               🚫 Hủy việc
             </button>
           )}
-          {canActAsAssigner && item.status === "completed" && (
+          {canEditAssignment && item.status === "completed" && (
             <button onClick={() => doStatusChange("in_progress", false, true)} className="btn btn-secondary text-sm">
               ↩️ Mở lại (trong 48h)
             </button>
@@ -303,22 +287,12 @@ export default function WorkItemDetailPage() {
           )}
         </div>
 
-        {showAssign && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg space-y-2">
-            <p className="text-xs text-gray-500">
-              {item.owner_id
-                ? "Đổi người chịu trách nhiệm chính - cần nêu lý do, có ghi lịch sử."
-                : "Chọn người chịu trách nhiệm chính để giao việc ngay."}
-            </p>
-            <select className="input" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-              <option value="">-- Chọn người --</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role_name})</option>)}
-            </select>
-            <div className="flex gap-2">
-              <button onClick={() => setShowAssign(false)} className="btn btn-secondary text-sm">Hủy</button>
-              <button onClick={doAssign} disabled={busy || !assignTo} className="btn btn-primary text-sm">Xác nhận</button>
-            </div>
-          </div>
+        {showEditAssignment && (
+          <EditAssignmentModal
+            item={item}
+            onClose={() => setShowEditAssignment(false)}
+            onSaved={() => { setShowEditAssignment(false); load(); }}
+          />
         )}
 
         {showEditProposal && (

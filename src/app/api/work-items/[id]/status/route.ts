@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get, run } from "@/lib/db";
-import { requireUser, canAssign, canCloseConfirm } from "@/lib/auth";
+import { requireUser, isSuperAdmin } from "@/lib/auth";
 import { notify } from "@/lib/notify";
-import { isTransitionAllowed, isAssigner, isResponsible, STATUSES } from "@/lib/workflow";
+import { isTransitionAllowed, isResponsible, canEditWorkItem, STATUSES } from "@/lib/workflow";
 import { v4 as uuid } from "uuid";
 
 // PATCH /api/work-items/:id/status  body: { status, note?, reason? }
@@ -44,8 +44,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (!reason) {
         return NextResponse.json({ error: "Cần nêu lý do khi mở lại việc" }, { status: 400 });
       }
-      if (!(canCloseConfirm(user.roleName) || item.creator_id === user.id)) {
-        return NextResponse.json({ error: "Bạn không có quyền mở lại việc này" }, { status: 403 });
+      if (!canEditWorkItem(item, user.id, user.email, isSuperAdmin)) {
+        return NextResponse.json({ error: "Chỉ người tạo/người giao việc của việc này (hoặc Super Admin) mới có quyền mở lại" }, { status: 403 });
       }
     }
 
@@ -56,27 +56,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       );
     }
 
-    // Hủy việc: chỉ Người giao việc / cấp duyệt (Quản lý/BGĐ), bắt buộc lý do (mục 8)
-    if (toStatus === STATUSES.CANCELLED && !(isAssigner(item, user.id) || canAssign(user.roleName))) {
-      return NextResponse.json({ error: "Chỉ người giao việc mới có quyền hủy việc" }, { status: 403 });
+    // Hủy việc: chỉ Người tạo/Người giao việc của việc này (hoặc Super Admin), bắt buộc lý do (mục 8)
+    if (toStatus === STATUSES.CANCELLED && !canEditWorkItem(item, user.id, user.email, isSuperAdmin)) {
+      return NextResponse.json({ error: "Chỉ người tạo/người giao việc của việc này (hoặc Super Admin) mới có quyền hủy việc" }, { status: 403 });
     }
     if (toStatus === STATUSES.CANCELLED && !reason) {
       return NextResponse.json({ error: "Cần nêu lý do khi hủy việc" }, { status: 400 });
     }
 
-    // Yêu cầu xử lý lại trực tiếp: chỉ Người giao việc / cấp duyệt, bắt buộc lý do (mục 8)
+    // Yêu cầu xử lý lại trực tiếp: chỉ Người tạo/Người giao việc của việc này (hoặc Super Admin), bắt buộc lý do (mục 8)
     if (toStatus === STATUSES.REWORK_REQUESTED) {
-      if (!(isAssigner(item, user.id) || canAssign(user.roleName))) {
-        return NextResponse.json({ error: "Chỉ người giao việc mới có quyền yêu cầu xử lý lại" }, { status: 403 });
+      if (!canEditWorkItem(item, user.id, user.email, isSuperAdmin)) {
+        return NextResponse.json({ error: "Chỉ người tạo/người giao việc của việc này (hoặc Super Admin) mới có quyền yêu cầu xử lý lại" }, { status: 403 });
       }
       if (!reason) {
         return NextResponse.json({ error: "Cần nêu lý do khi yêu cầu xử lý lại" }, { status: 400 });
       }
     }
 
-    // Tiếp tục xử lý sau "Yêu cầu xử lý lại": Người chịu trách nhiệm hoặc Người giao việc
+    // Tiếp tục xử lý sau "Yêu cầu xử lý lại": Người chịu trách nhiệm (việc của chính họ) hoặc Người tạo/Người
+    // giao việc/Super Admin - KHÔNG mở rộng cho Quản lý/BGĐ nói chung nữa.
     if (fromStatus === STATUSES.REWORK_REQUESTED && toStatus === STATUSES.IN_PROGRESS) {
-      if (!(isResponsible(item, user.id) || isAssigner(item, user.id) || canAssign(user.roleName))) {
+      if (!(isResponsible(item, user.id) || canEditWorkItem(item, user.id, user.email, isSuperAdmin))) {
         return NextResponse.json({ error: "Bạn không có quyền chuyển tiếp việc này" }, { status: 403 });
       }
     }
