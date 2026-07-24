@@ -5,14 +5,21 @@ declare global {
   var __docsAppPool: Pool | undefined;
 }
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("Thiếu biến môi trường DATABASE_URL (connection string PostgreSQL/Supabase)");
-}
+// QUAN TRỌNG: KHÔNG kiểm tra/tạo Pool ngay khi import module (như bản cũ) - nếu làm vậy, lệnh
+// `next build` sẽ CRASH TOÀN BỘ BUILD bất cứ khi nào DATABASE_URL không có mặt ở đúng thời điểm build
+// (một số nền tảng như Netlify chỉ cấp biến môi trường cho phạm vi "Runtime", không có ở phạm vi
+// "Build" trừ khi cấu hình đủ cả 2). Khi build lỗi, Netlify tự giữ nguyên bản deploy CŨ và im lặng -
+// trông giống như "deploy xong nhưng chẳng có gì thay đổi". Sửa: chỉ tạo Pool (và chỉ báo lỗi thiếu
+// biến môi trường) vào đúng lúc có truy vấn DB đầu tiên thực sự chạy (lúc runtime, không phải build).
+function getPool(): Pool {
+  if (globalThis.__docsAppPool) return globalThis.__docsAppPool;
 
-export const pool: Pool =
-  globalThis.__docsAppPool ??
-  new Pool({
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("Thiếu biến môi trường DATABASE_URL (connection string PostgreSQL/Supabase)");
+  }
+
+  const pool = new Pool({
     connectionString,
     ssl: connectionString.includes("localhost") ? false : { rejectUnauthorized: false },
     max: 3, // giảm từ 10 -> 3: môi trường serverless (Netlify) có thể chạy nhiều container cùng lúc,
@@ -20,10 +27,20 @@ export const pool: Pool =
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 8000, // timeout kết nối rõ ràng thay vì treo vô thời hạn
   });
-
-if (process.env.NODE_ENV !== "production") {
   globalThis.__docsAppPool = pool;
+  return pool;
 }
+
+// Giữ export `pool` để tương thích các chỗ import cũ (vd scripts/check-overdue.ts) - nhưng dùng
+// Proxy để việc truy cập `pool.<gì đó>` vẫn chỉ khởi tạo kết nối thật vào đúng lúc dùng, không phải
+// lúc import file.
+export const pool: Pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    const real = getPool();
+    const value = (real as any)[prop];
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
 
 // ---- Chuyển named params kiểu ":name" (SQLite-style) sang "$1, $2..." (Postgres-style) ----
 // Giữ nguyên cách gọi all(sql, {key: value}) ở toàn bộ API routes để không phải viết lại query.

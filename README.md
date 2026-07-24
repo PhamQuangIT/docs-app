@@ -21,6 +21,29 @@ Nhiều khả năng do kết nối tới DB (Postgres serverless) bị chập ch
 (giờ sẽ hiện "Không kết nối được hệ thống, vui lòng thử lại" thay vì gây hiểu lầm). Nếu còn lặp lại, kiểm tra thêm:
 chuỗi kết nối `DATABASE_URL` có đang trỏ đúng "pooled connection" của Neon/Supabase (không phải kết nối trực tiếp) không.
 
+## 🔴 SỬA LỖI QUAN TRỌNG: "Deploy xong nhưng không có gì thay đổi" (24/07/2026)
+
+Tìm ra 2 lỗi khiến các bản deploy trước có thể đã **build thất bại âm thầm trên Netlify** (Netlify tự giữ
+nguyên bản deploy cũ khi build lỗi, KHÔNG báo gì rõ ràng cho người dùng cuối - trông giống hệt "deploy xong mà
+chẳng có gì đổi"):
+
+1. **`src/lib/db.ts` kiểm tra `DATABASE_URL` ngay lúc `import` module** (lúc build), thay vì lúc thực sự có
+   truy vấn DB (lúc chạy). Nếu Netlify chỉ cấp biến môi trường này cho phạm vi "Runtime" mà thiếu phạm vi
+   "Build" (dễ xảy ra nếu lúc thêm biến trên Netlify không tick đủ cả 2 phạm vi), lệnh `next build` sẽ
+   **crash toàn bộ ngay khi build**, không liên quan gì tới đoạn code mới sửa. Đã sửa: Pool kết nối DB giờ
+   khởi tạo "lazy" (`getPool()` + `Proxy`), chỉ thực sự kết nối khi có request thật, không đụng gì lúc build.
+2. **3 trang mới (Báo cáo sự cố/Kiến nghị/Lịch họp) dùng `useSearchParams()` mà chưa bọc `<Suspense>`** - lỗi
+   này chắc chắn làm `next build` thất bại 100% (không phụ thuộc biến môi trường), mới phát sinh từ đợt 8. Đã
+   bọc `<Suspense>` cho cả 3 trang.
+
+**Đã build thử local thành công 100% sau khi sửa (lần đầu tiên trong toàn bộ quá trình - trước đó luôn bị chặn
+ở bước "Collecting page data" do giới hạn sandbox, nay đã qua hẳn bước đó).**
+
+**Anh cần kiểm tra thêm:** vào Netlify → site → **Deploys**, mở log của lần deploy gần nhất trước đây - nếu
+thấy dòng đỏ "Build failed" hoặc dòng có nhắc `DATABASE_URL`/`useSearchParams`, đó chính là nguyên nhân các
+thay đổi trước không lên được. Sau khi deploy bản này, vào Netlify → **Site settings → Environment variables**,
+kiểm tra `DATABASE_URL` có tick cả ô "Builds" lẫn "Functions"/"Runtime" không (không chỉ 1 trong 2).
+
 ## Cập nhật mới nhất (đợt 8 - 3 phân hệ mới + hạ tầng email 23/07/2026)
 
 **3 phân hệ mới, đầy đủ DB + API + giao diện:**

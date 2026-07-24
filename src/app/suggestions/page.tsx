@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 };
 function fmt(dt: string) { return new Date(dt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-export default function SuggestionsPage() {
+function SuggestionsPageInner() {
   const [scope, setScope] = useState<"pending_me" | "mine" | "all">("pending_me");
   const [items, setItems] = useState<any[]>([]);
   const searchParams = useSearchParams();
@@ -123,5 +123,13 @@ function CreateSuggestionModal({ users, onClose, onCreated }: { users: any[]; on
         </div>
       </form>
     </div>
+  );
+}
+
+export default function SuggestionsPage() {
+  return (
+    <Suspense fallback={<div className="text-gray-400 text-sm">Đang tải...</div>}>
+      <SuggestionsPageInner />
+    </Suspense>
   );
 }

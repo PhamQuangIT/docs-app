@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -9,7 +9,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 function fmt(dt: string) { return new Date(dt).toLocaleString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
 
-export default function MeetingsPage() {
+function MeetingsPageInner() {
   const [items, setItems] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
@@ -126,5 +126,13 @@ function CreateMeetingModal({ users, onClose, onCreated }: { users: any[]; onClo
         </div>
       </form>
     </div>
+  );
+}
+
+export default function MeetingsPage() {
+  return (
+    <Suspense fallback={<div className="text-gray-400 text-sm">Đang tải...</div>}>
+      <MeetingsPageInner />
+    </Suspense>
   );
 }
