@@ -21,6 +21,45 @@ Nhiều khả năng do kết nối tới DB (Postgres serverless) bị chập ch
 (giờ sẽ hiện "Không kết nối được hệ thống, vui lòng thử lại" thay vì gây hiểu lầm). Nếu còn lặp lại, kiểm tra thêm:
 chuỗi kết nối `DATABASE_URL` có đang trỏ đúng "pooled connection" của Neon/Supabase (không phải kết nối trực tiếp) không.
 
+## Cập nhật mới nhất (đợt 8 - 3 phân hệ mới + hạ tầng email 23/07/2026)
+
+**3 phân hệ mới, đầy đủ DB + API + giao diện:**
+- **⚠️ Báo cáo sự cố** (`/incident-reports`): luồng duyệt Trưởng nhóm → Phó phòng → Trưởng phòng → Giám
+  đốc/Trợ lý GĐ (khớp theo TÊN chức danh trong đúng bộ phận - xem giả định bên dưới). Nút "Tạo công việc khắc
+  phục" tự sinh 1 Task bên "Giao việc", được chỉnh deadline trước khi phát hành.
+- **💡 Kiến nghị - Đề xuất** (`/suggestions`): người tạo tự chọn người nhận (hỗ trợ vượt cấp), 7 trạng thái phản
+  hồi đầy đủ (Từ chối/Chấp thuận/Chấp thuận 1 phần/Yêu cầu bổ sung/Chuyển cấp cao hơn/Đã hoàn thành/Ghi nhận
+  tương lai). Khi đã duyệt (approved/partially_approved/done) → khóa sửa, phải qua "Đề xuất sửa kiến nghị" được
+  người nhận đồng ý mới mở khóa lại (tự về trạng thái chờ phản hồi sau khi sửa).
+- **📅 Lịch họp** (`/meetings`): 5 loại họp, tìm & chọn người tham dự, dời lịch/hủy họp bắt buộc nêu lý do, **tự
+  động gửi email** (mời họp/dời lịch/hủy họp) tới email đăng nhập của người tham dự.
+
+**Hạ tầng gửi email:** tích hợp Resend qua `src/lib/email.ts` (gọi thẳng REST API, không dùng Supabase Edge
+Function - xem giả định bên dưới), có bảng `email_log` để truy vết gửi thành công/thất bại/bỏ qua. Trang
+**Cài đặt hệ thống** (`/admin/settings`, chỉ Super Admin) kiểm tra trạng thái cấu hình + gửi email test.
+
+**NavBar:** thêm 3 tab mới, đổi nút "+ Tạo việc" thành dropdown "+ Tạo phát sinh" (4 lựa chọn).
+
+Chạy `db/migration_010_incidents_suggestions_meetings.sql` trên DB thật (không mất dữ liệu, chỉ thêm bảng/cột mới).
+
+**Giả định quan trọng cần anh xác nhận:**
+1. **Hạ tầng backend**: app đang chạy Next.js + Postgres thuần (không phải Supabase) nên em viết gửi email
+   TRỰC TIẾP trong API route (khi tạo/dời/hủy lịch họp) thay vì Supabase Database Trigger/Edge Function như
+   mô tả - cùng hiệu quả tự động hóa, chỉ khác nơi đặt code. Cần thêm biến môi trường `RESEND_API_KEY` (và tuỳ
+   chọn `RESEND_FROM_EMAIL`) trong Netlify → Environment variables.
+2. **Không lưu API Key trong DB/UI**: trang Cài đặt Admin chỉ hiển thị TRẠNG THÁI đã cấu hình hay chưa + nút gửi
+   test, không cho nhập/lưu key trực tiếp trong ứng dụng (an toàn hơn, đúng tinh thần "để trong .gitignore/biến
+   môi trường" mà chính yêu cầu đã nêu).
+3. **Chuỗi duyệt Báo cáo sự cố**: khớp theo tên chức danh chứa "trưởng nhóm"/"phó phòng"/"trưởng phòng" (không
+   phân biệt hoa thường) trong đúng bộ phận của báo cáo; cấp cuối khớp vai trò BGĐ hoặc chức danh chứa "trợ lý
+   giám đốc". Nếu bộ phận chưa có ai giữ đúng chức danh ở 1 cấp nào đó, báo cáo sẽ bị "kẹt" ở cấp đó cho đến khi
+   có người phù hợp hoặc Super Admin can thiệp (đúng theo quyền override đã nêu).
+4. **Kiến nghị "Chuyển cấp cao hơn"**: giao diện hiện chọn người nhận mới qua việc nhập ID thủ công (danh sách ID
+   hiển thị bên dưới trang) - chưa làm ô tìm kiếm đẹp như phần tạo mới, do giới hạn thời gian; có thể nâng cấp
+   thêm nếu anh cần.
+5. Báo cáo sự cố hiện **chưa hỗ trợ đính kèm hình ảnh/file** (đã tạo sẵn bảng `incident_report_attachments`
+   nhưng chưa nối API/giao diện upload) - làm tiếp nếu anh cần ngay.
+
 ## Cập nhật mới nhất (đợt 7 - Nâng cấp "Điều chỉnh phân công" & siết quyền sửa việc 22/07/2026)
 
 - **Modal "Điều chỉnh phân công" giờ đầy đủ như form Tạo việc**: Tên việc, Mô tả, Ưu tiên, Deadline, Loại thời hạn,

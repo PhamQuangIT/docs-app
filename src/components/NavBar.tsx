@@ -14,7 +14,10 @@ const SUPER_ADMIN_EMAIL = "admin@3pl.local"; // chỉ dùng để hiện/ẩn m�
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/work-items", label: "Công việc" },
+  { href: "/work-items", label: "Giao việc" },
+  { href: "/incident-reports", label: "⚠️ Báo cáo sự cố" },
+  { href: "/suggestions", label: "💡 Kiến nghị - Đề xuất" },
+  { href: "/meetings", label: "📅 Lịch họp" },
   { href: "/reports", label: "Báo cáo" },
   { href: "/announcements", label: "Bảng tin" },
 ];
@@ -31,8 +34,10 @@ export default function NavBar() {
   const [me, setMe] = useState<Me | null>(null);
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const createMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (pathname === "/login") return;
@@ -49,6 +54,7 @@ export default function NavBar() {
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) setCreateMenuOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -108,13 +114,31 @@ export default function NavBar() {
             </div>
           </form>
 
-          <button
-            onClick={openCreateModal}
-            className="text-sm font-medium text-white px-3.5 py-2 rounded-md hover:opacity-90 transition-opacity whitespace-nowrap"
-            style={{ backgroundColor: "#2563eb" }}
-          >
-            + Tạo việc
-          </button>
+          <div className="relative" ref={createMenuRef}>
+            <button
+              onClick={() => setCreateMenuOpen((s) => !s)}
+              className="text-sm font-medium text-white px-3.5 py-2 rounded-md hover:opacity-90 transition-opacity whitespace-nowrap flex items-center gap-1"
+              style={{ backgroundColor: "#2563eb" }}
+            >
+              + Tạo phát sinh ▾
+            </button>
+            {createMenuOpen && (
+              <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1.5 z-30">
+                <button onClick={() => { setCreateMenuOpen(false); openCreateModal(); }} className="w-full text-left px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  🗂 Tạo công việc mới
+                </button>
+                <button onClick={() => { setCreateMenuOpen(false); router.push("/incident-reports?new=1"); }} className="w-full text-left px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  ⚠️ Tạo báo cáo sự cố
+                </button>
+                <button onClick={() => { setCreateMenuOpen(false); router.push("/suggestions?new=1"); }} className="w-full text-left px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  💡 Tạo kiến nghị/đề xuất
+                </button>
+                <button onClick={() => { setCreateMenuOpen(false); router.push("/meetings?new=1"); }} className="w-full text-left px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  📅 Tạo lịch họp
+                </button>
+              </div>
+            )}
+          </div>
 
           <Link href="/notifications" className="relative text-lg text-slate-500 hover:text-slate-700 px-1">
             🔔
@@ -146,9 +170,14 @@ export default function NavBar() {
                   Đổi mật khẩu
                 </Link>
                 {me?.email === SUPER_ADMIN_EMAIL && (
-                  <Link href="/users" className="block px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50" onClick={() => setMenuOpen(false)}>
-                    Quản trị hệ thống
-                  </Link>
+                  <>
+                    <Link href="/users" className="block px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50" onClick={() => setMenuOpen(false)}>
+                      Quản trị hệ thống
+                    </Link>
+                    <Link href="/admin/settings" className="block px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-50" onClick={() => setMenuOpen(false)}>
+                      ⚙️ Cài đặt hệ thống
+                    </Link>
+                  </>
                 )}
                 <button
                   onClick={handleLogout}
