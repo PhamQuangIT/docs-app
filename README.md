@@ -44,6 +44,32 @@ thấy dòng đỏ "Build failed" hoặc dòng có nhắc `DATABASE_URL`/`useSea
 thay đổi trước không lên được. Sau khi deploy bản này, vào Netlify → **Site settings → Environment variables**,
 kiểm tra `DATABASE_URL` có tick cả ô "Builds" lẫn "Functions"/"Runtime" không (không chỉ 1 trong 2).
 
+## Cập nhật mới nhất (đợt 9 - Header 3D, Mobile Responsive, Drill-down 24/07/2026)
+
+**Không có migration DB mới ở đợt này** (chỉ sửa giao diện + logic điều hướng) - `migration_010` vẫn là bản mới nhất.
+
+- **NavBar 3D "Tactile"**: 7 tab dạng nút nổi khối (gradient xanh khi active, chân đế đổ bóng 4px, nảy nhẹ khi
+  hover, chìm xuống khi bấm), 1 hàng ngang không vỡ chữ (`whitespace-nowrap` + cuộn ngang riêng nếu quá hẹp,
+  không ảnh hưởng cuộn ngang toàn trang).
+- **Mobile Responsive đầy đủ**: NavBar chuyển thành nút Hamburger + Drawer trượt từ trái (đủ toàn bộ tab, tạo
+  nhanh, thông báo, đổi mật khẩu, quản trị) trên màn hình < `md` (768px). Modal (Tạo việc, Điều chỉnh phân công,
+  Tạo báo cáo sự cố/kiến nghị/lịch họp) tự chuyển thành **toàn màn hình** trên mobile, giữ dạng card giữa màn
+  hình trên desktop. Danh sách "Giao việc" tự chuyển từ bảng sang **Card view** trên mobile.
+- **Drill-down từ thẻ KPI Dashboard**: bấm vào từng thẻ tự điều hướng + lọc đúng theo yêu cầu (Sự cố hôm nay →
+  tab Báo cáo sự cố lọc ngày tạo hôm nay; Đang quá hạn / Cần xử lý lại / Hoàn thành hôm nay → tab Giao việc với
+  filter tương ứng). Tiện thể sửa luôn 1 lỗi có sẵn từ trước: ô tìm kiếm trên NavBar trước đây không thực sự
+  lọc được trang Giao việc (thiếu đọc query `?q=` lúc tải trang) - nay đã hoạt động đúng.
+
+**Giả định/đơn giản hóa:**
+- Chọn **Hamburger Drawer** thay vì Bottom Navigation Bar cho mobile (cả 2 đều được đề cập trong yêu cầu như
+  lựa chọn tương đương - Drawer bao được đủ 7 tab + các mục phụ mà không cần thêm 1 lớp "xem thêm").
+- Chưa làm phiên bản "Bottom Sheet" trượt từ đáy cho modal - hiện dùng full-screen modal (cùng mục tiêu dễ thao
+  tác trên điện thoại, đơn giản hơn để triển khai nhất quán trên nhiều modal cùng lúc).
+- Phần "Row Level Security (RLS) trên Supabase" trong yêu cầu **chưa áp dụng** vì app đang chạy Postgres thuần
+  qua Next.js API (không phải Supabase client-side) - mọi kiểm tra quyền đã nằm ở tầng API route (tương đương
+  mục tiêu bảo mật của RLS, chỉ khác cơ chế). Nếu sau này chuyển sang gọi thẳng Supabase client từ trình duyệt,
+  cần bổ sung RLS thật sự lúc đó.
+
 ## Cập nhật mới nhất (đợt 8 - 3 phân hệ mới + hạ tầng email 23/07/2026)
 
 **3 phân hệ mới, đầy đủ DB + API + giao diện:**

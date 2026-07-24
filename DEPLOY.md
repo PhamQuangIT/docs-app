@@ -131,6 +131,14 @@ không cần cấu hình thêm ở đâu khác. Có thể xem lịch sử chạy
 | `DATABASE_URL` | connection string Supabase đã copy ở Bước 1 |
 | `JWT_SECRET` | một chuỗi ngẫu nhiên bất kỳ, VD tự gõ 32 ký tự lộn xộn |
 | `CRON_SECRET` | (chỉ cần nếu dùng Vercel) một chuỗi ngẫu nhiên khác để bảo vệ endpoint cron |
+| `RESEND_API_KEY` | (tùy chọn, từ đợt 8) Khóa API lấy tại resend.com (gói free 3.000 email/tháng) - dùng để tự động gửi email mời họp/dời lịch/hủy họp. Không có cũng không sao, hệ thống tự bỏ qua việc gửi mail (ghi log, không lỗi) |
+| `RESEND_FROM_EMAIL` | (tùy chọn) VD `"DOCS Vận hành <onboarding@resend.dev>"` - để trống dùng mặc định |
+| `SUPER_ADMIN_EMAIL` | (tùy chọn, từ đợt 6) mặc định `admin@3pl.local` nếu không đặt - email duy nhất có quyền Quản trị hệ thống |
+
+**⚠️ Quan trọng (rút kinh nghiệm từ lỗi build đợt 24/07):** khi thêm các biến trên trong Netlify → Site
+settings → Environment variables, đảm bảo tick **cả 2 phạm vi "Builds" và "Functions"/"Runtime"** cho
+`DATABASE_URL` (không chỉ 1 trong 2) - nếu chỉ có ở Runtime mà thiếu ở Build, lệnh build có thể lỗi và
+Netlify sẽ âm thầm giữ nguyên bản deploy cũ, trông giống như "deploy xong mà chẳng có gì đổi".
 
 ## Bước 6 — Tạo dữ liệu mẫu trên Supabase (chỉ 1 lần)
 

@@ -24,9 +24,10 @@ function fmt(dt: string) {
 }
 
 function IncidentReportsPageInner() {
-  const [scope, setScope] = useState<"pending_me" | "mine" | "all">("pending_me");
-  const [items, setItems] = useState<any[]>([]);
   const searchParams = useSearchParams();
+  const filterToday = searchParams.get("today") === "1";
+  const [scope, setScope] = useState<"pending_me" | "mine" | "all">(filterToday ? "all" : "pending_me");
+  const [items, setItems] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
 
@@ -38,12 +39,20 @@ function IncidentReportsPageInner() {
   useEffect(() => { if (searchParams.get("new") === "1") setShowCreate(true); }, [searchParams]);
   useEffect(() => { fetch("/api/departments").then((r) => r.json()).then(setDepartments).catch(() => {}); }, []);
 
+  const todayStr = new Date().toDateString();
+  const displayedItems = filterToday ? items.filter((i) => new Date(i.created_at).toDateString() === todayStr) : items;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-800">⚠️ Báo cáo sự cố</h1>
         <button onClick={() => setShowCreate(true)} className="btn btn-primary text-sm">+ Tạo báo cáo sự cố</button>
       </div>
+      {filterToday && (
+        <div className="text-sm bg-blue-50 text-blue-700 rounded-lg px-3 py-2">
+          🔎 Đang lọc: Ngày tạo = Hôm nay ({displayedItems.length} báo cáo)
+        </div>
+      )}
 
       <div className="flex gap-2">
         {[
@@ -62,8 +71,8 @@ function IncidentReportsPageInner() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
-        {items.length === 0 && <p className="text-sm text-slate-400 p-6 text-center">Không có báo cáo nào</p>}
-        {items.map((i) => (
+        {displayedItems.length === 0 && <p className="text-sm text-slate-400 p-6 text-center">Không có báo cáo nào</p>}
+        {displayedItems.map((i) => (
           <Link key={i.id} href={`/incident-reports/${i.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -119,8 +128,8 @@ function CreateIncidentModal({ departments, onClose, onCreated }: { departments:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-      <form onSubmit={submit} className="bg-white rounded-lg shadow-lg w-full flex flex-col my-auto" style={{ maxWidth: 600, maxHeight: "calc(100vh - 32px)" }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <form onSubmit={submit} className="bg-white sm:rounded-lg shadow-lg w-full flex flex-col my-0 sm:my-auto h-full sm:h-auto" style={{ maxWidth: 600, maxHeight: "calc(100vh - 32px)" }}>
         <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Tạo báo cáo sự cố</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>

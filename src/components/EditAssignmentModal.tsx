@@ -186,13 +186,13 @@ export default function EditAssignmentModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-lg shadow-lg w-full flex flex-col my-auto"
+        className="bg-white sm:rounded-lg shadow-lg w-full flex flex-col my-0 sm:my-auto h-full sm:h-auto"
         style={{ maxWidth: 650, maxHeight: "calc(100vh - 32px)" }}
       >
         {/* HEADER cố định */}

@@ -5,6 +5,7 @@
 body {
   background-color: #f4f6f9;
   color: #1e293b;
+  overflow-x: hidden;
 }
 
 .badge {

@@ -56,6 +56,9 @@ export async function GET(req: NextRequest) {
     const toDate = sp.get("to_date");
     if (toDate) { where.push("wi.created_at <= :to_date"); params.to_date = toDate; }
 
+    // Drill-down từ thẻ KPI Dashboard "Hoàn thành hôm nay"
+    if (sp.get("completed_today") === "1") { where.push("wi.completed_at::date = CURRENT_DATE"); }
+
     const q = sp.get("q");
     if (q) { where.push("wi.title ILIKE :q"); params.q = `%${q}%`; }
 

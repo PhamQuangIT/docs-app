@@ -200,7 +200,7 @@ export default function CreateWorkItemModal({
     // OVERLAY: items-start (không phải items-center) + overflow-y-auto + padding, để form dài vẫn kéo được
     // lên tới sát mép trên khi cuộn (tránh lỗi che mất Header đã gặp trước đây).
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -208,7 +208,7 @@ export default function CreateWorkItemModal({
           khi nội dung ngắn hơn viewport, nhưng vẫn cuộn đúng khi nội dung dài hơn viewport. */}
       <form
         onSubmit={(e) => handleSubmit(e, false)}
-        className="bg-white rounded-lg shadow-lg w-full flex flex-col my-auto"
+        className="bg-white sm:rounded-lg shadow-lg w-full flex flex-col my-0 sm:my-auto h-full sm:h-auto"
         style={{ maxWidth: 650, maxHeight: "calc(100vh - 32px)" }}
       >
         {/* HEADER - cố định, không cuộn theo */}

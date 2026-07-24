@@ -64,11 +64,13 @@ function WorkItemsPageInner() {
 
   const [items, setItems] = useState<any[]>([]);
   const [type, setType] = useState(saved?.type ?? "");
-  const [status, setStatus] = useState(saved?.status ?? "");
-  const [q, setQ] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") ?? saved?.status ?? "");
+  const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [personQ, setPersonQ] = useState("");
   const [departmentId, setDepartmentId] = useState(saved?.departmentId ?? "");
   const [positionId, setPositionId] = useState(saved?.positionId ?? "");
+  const [isOverdue] = useState(searchParams.get("is_overdue") ?? "");
+  const [completedToday] = useState(searchParams.get("completed_today") ?? "");
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(searchParams.get("create") === "1");
@@ -88,6 +90,8 @@ function WorkItemsPageInner() {
     if (personQ) sp.set("person_q", personQ);
     if (departmentId) sp.set("department_id", departmentId);
     if (positionId) sp.set("position_id", positionId);
+    if (isOverdue) sp.set("is_overdue", isOverdue);
+    if (completedToday) sp.set("completed_today", completedToday);
     const res = await fetch(`/api/work-items?${sp.toString()}`);
     const data = await res.json();
     setItems(data);
@@ -102,7 +106,7 @@ function WorkItemsPageInner() {
       JSON.stringify({ type, status, departmentId, positionId })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, status, departmentId, positionId]);
+  }, [type, status, departmentId, positionId, isOverdue, completedToday]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -162,7 +166,8 @@ function WorkItemsPageInner() {
         <button className="btn btn-secondary text-sm">Lọc</button>
       </form>
 
-      <div className="card p-0 overflow-hidden">
+      {/* Desktop: bảng đầy đủ (ẩn trên mobile) */}
+      <div className="card p-0 overflow-hidden hidden md:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs">
             <tr>
@@ -205,6 +210,37 @@ function WorkItemsPageInner() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: dạng Thẻ (Card view) thay cho bảng - dễ chạm, không cuộn ngang */}
+      <div className="md:hidden space-y-2">
+        {loading && <p className="text-center text-gray-400 py-6 text-sm">Đang tải...</p>}
+        {!loading && items.length === 0 && <p className="text-center text-gray-400 py-6 text-sm">Không có công việc nào</p>}
+        {items.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => router.push(`/work-items/${item.id}`)}
+            className="card p-3 active:bg-gray-50"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-medium text-gray-800 flex-1 min-w-0">
+                {item.is_overdue ? <span className="text-red-500 mr-1">⚠</span> : null}
+                {item.title}
+              </div>
+              <PriorityBadge priority={item.priority} />
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <TypeLabel type={item.type} />
+              <StatusBadge status={item.status} />
+            </div>
+            <div className="text-xs text-gray-500 mt-1.5">
+              👤 {item.owner_name ?? (item.owner_name_manual ? `${item.owner_name_manual} (ghi chú)` : "Chưa gán")}
+            </div>
+            <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+              📅 {fmt(item.deadline)} <SlaCountdown deadline={item.deadline} status={item.status} />
+            </div>
+          </div>
+        ))}
       </div>
 
       {showCreate && (

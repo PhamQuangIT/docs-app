@@ -85,8 +85,8 @@ function CreateSuggestionModal({ users, onClose, onCreated }: { users: any[]; on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-      <form onSubmit={submit} className="bg-white rounded-lg shadow-lg w-full flex flex-col my-auto" style={{ maxWidth: 560, maxHeight: "calc(100vh - 32px)" }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <form onSubmit={submit} className="bg-white sm:rounded-lg shadow-lg w-full flex flex-col my-0 sm:my-auto h-full sm:h-auto" style={{ maxWidth: 560, maxHeight: "calc(100vh - 32px)" }}>
         <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Tạo kiến nghị / đề xuất</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>

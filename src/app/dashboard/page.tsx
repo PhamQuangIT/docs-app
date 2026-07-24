@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PriorityBadge, TypeLabel } from "@/components/Badges";
 
@@ -60,6 +61,7 @@ const TABS = [
 ] as const;
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("overdue");
@@ -95,28 +97,41 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI cards - grid 4 cột */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+      {/* KPI cards - grid 4 cột, click để drill-down sang tab tương ứng kèm bộ lọc */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button
+          onClick={() => router.push("/incident-reports?today=1")}
+          className="text-left bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
+        >
           <div className="text-xs text-slate-500">Sự cố hôm nay</div>
           <div className="text-2xl font-bold mt-1" style={{ color: "#eab308" }}>{data.todayIssues}</div>
-        </div>
-        <div className="bg-white rounded-xl border-2 p-4" style={{ borderColor: "#ef4444" }}>
+        </button>
+        <button
+          onClick={() => router.push("/work-items?is_overdue=true")}
+          className="text-left bg-white rounded-xl border-2 p-4 cursor-pointer hover:shadow-md transition-shadow"
+          style={{ borderColor: "#ef4444" }}
+        >
           <div className="text-xs font-medium" style={{ color: "#ef4444" }}>Đang quá hạn</div>
           <div className="text-2xl font-bold mt-1" style={{ color: "#ef4444" }}>{data.overdue.length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        </button>
+        <button
+          onClick={() => router.push("/work-items?status=rework_requested")}
+          className="text-left bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
+        >
           <div className="text-xs text-slate-500">Cần xử lý lại</div>
           <div className="text-2xl font-bold mt-1 text-slate-700">{data.needSupport.length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
+        </button>
+        <button
+          onClick={() => router.push("/work-items?status=completed&completed_today=1")}
+          className="text-left bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-shadow"
+        >
           <div className="text-xs text-slate-500">Hoàn thành hôm nay</div>
           <div className="text-2xl font-bold mt-1" style={{ color: "#22c55e" }}>{data.completedToday}</div>
-        </div>
+        </button>
       </div>
 
       {/* Layout 2 cột: 65% - 35% */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: "65% 35%" }}>
+      <div className="grid grid-cols-1 md:grid-cols-[65%_35%] gap-4">
         {/* Cột trái: danh sách gộp tab */}
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <div className="flex flex-wrap gap-1 border-b border-gray-100 pb-2 mb-1">
